@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "React Native Template",
+    "slug": "react-native-template",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "todoapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-image-picker",
+      "expo-image"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.raja.todoapp"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.raja.todoapp",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "52d0c1e4-b023-4322-8426-a078b32f403a"
+      }
+    },
+    "owner": "rajamohanrdy",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/52d0c1e4-b023-4322-8426-a078b32f403a"
+    }
+  }
+}

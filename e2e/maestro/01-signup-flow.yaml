@@ -1,0 +1,46 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.template.reactnative
+  TEST_PASSWORD: E2ePass123!
+---
+- launchApp: {}
+
+- extendedWaitUntil:
+    visible:
+      text: "Welcome Back"
+    timeout: 30000
+
+- assertVisible: "Welcome Back"
+
+- tapOn: "Don't have an account? Sign Up"
+
+- extendedWaitUntil:
+    visible:
+      text: "Create Account"
+    timeout: 5000
+
+- assertVisible: "Create Account"
+
+- tapOn:
+    id: "email-input"
+- inputText: ${TEST_EMAIL_SIGNUP}
+
+- tapOn:
+    id: "password-input"
+- inputText: ${TEST_PASSWORD}
+
+- tapOn:
+    id: "confirm-password-input"
+- inputText: ${TEST_PASSWORD}
+
+- tapOn:
+    id: "signup-button"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "No todos yet. Tap + to create one."
+    timeout: 20000
+
+- assertVisible: "No todos yet. Tap + to create one."

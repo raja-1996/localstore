@@ -1,0 +1,13 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.template.reactnative
+---
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible:
+      text: "Welcome Back"
+    timeout: 20000
+
+- assertVisible: "Welcome Back"

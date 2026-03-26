@@ -1,0 +1,45 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.template.reactnative
+---
+- launchApp: {}
+
+# Already logged in — expect Todos screen
+- extendedWaitUntil:
+    visible:
+      text: "Todos"
+    timeout: 20000
+
+- assertVisible: "Todos"
+
+# --- Navigate to Settings ---
+- tapOn: "Settings"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "Sign Out"
+    timeout: 5000
+
+- assertVisible: "Sign Out"
+
+# --- Sign Out ---
+- tapOn: "Sign Out"
+
+# Handle confirmation alert
+- extendedWaitUntil:
+    visible:
+      text: "Logout"
+    timeout: 5000
+
+- tapOn: "Logout"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "Welcome Back"
+    timeout: 20000
+
+- assertVisible: "Welcome Back"

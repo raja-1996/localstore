@@ -1,0 +1,29 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.template.reactnative
+  TEST_PHONE_OTP: ""   # required: --env TEST_PHONE_OTP=<code>
+---
+# Phase 2 — Enter the SMS code received after running 07a.
+# The app must already be on the OTP entry screen (do NOT clearState).
+#
+#   maestro test e2e/maestro/07b-phone-login-verify.yaml --env TEST_PHONE_OTP=<code>
+
+- assertVisible: "Enter the 6-digit code sent to your phone"
+- assertVisible: "Verification Code"
+
+- tapOn:
+    id: "otp-input"
+- inputText: ${TEST_PHONE_OTP}
+
+- tapOn:
+    id: "verify-button"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "Todos"
+    timeout: 20000
+
+- assertVisible:
+    text: "Todos"

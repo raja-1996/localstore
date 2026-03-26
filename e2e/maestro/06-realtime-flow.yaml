@@ -1,0 +1,123 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.template.reactnative
+  TEST_EMAIL: e2e_test@gmail.com
+  TEST_PASSWORD: E2ePass123!
+---
+- launchApp:
+    clearState: true
+
+# --- Login ---
+- extendedWaitUntil:
+    visible:
+      text: "Welcome Back"
+    timeout: 20000
+
+- assertVisible: "Welcome Back"
+
+- tapOn:
+    id: "email-input"
+- inputText: ${TEST_EMAIL}
+
+- tapOn:
+    id: "password-input"
+- inputText: ${TEST_PASSWORD}
+
+- tapOn:
+    id: "login-button"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "Todos"
+    timeout: 20000
+
+# --- Navigate to Realtime tab ---
+- tapOn: "Realtime"
+
+- extendedWaitUntil:
+    visible:
+      text: "Live Todos Feed"
+    timeout: 10000
+
+# --- Assert presence and counter sections are visible ---
+- assertVisible:
+    id: "presence-count"
+
+- assertVisible:
+    id: "counter-value"
+
+# --- Increment counter once ---
+- tapOn:
+    id: "increment-button"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "1"
+    timeout: 5000
+
+- assertVisible: "1"
+
+# --- Increment counter a second time ---
+- tapOn:
+    id: "increment-button"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "2"
+    timeout: 5000
+
+- assertVisible: "2"
+
+# --- Navigate to Todos tab to create a new todo ---
+- tapOn: "Todos"
+
+- extendedWaitUntil:
+    visible:
+      id: "fab-button"
+    timeout: 5000
+
+# --- Create a new todo ---
+- tapOn:
+    id: "fab-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "What needs to be done?"
+    timeout: 5000
+
+- assertVisible: "What needs to be done?"
+
+- tapOn:
+    id: "title-input"
+- inputText: "Realtime Test Todo"
+
+- tapOn:
+    id: "description-input"
+- inputText: "Created by Maestro realtime flow"
+
+- tapOn: "Save"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "Realtime Test Todo"
+    timeout: 5000
+
+- assertVisible: "Realtime Test Todo"
+
+# --- Navigate back to Realtime tab to observe postgres_changes event ---
+- tapOn: "Realtime"
+
+- extendedWaitUntil:
+    visible:
+      text: "INSERT"
+    timeout: 8000
+
+- assertVisible: "INSERT"

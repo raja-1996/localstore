@@ -1,0 +1,72 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.template.reactnative
+  TEST_PHONE: "+919182666194"
+  TEST_PHONE_OTP: ""   # override at runtime: --env TEST_PHONE_OTP=123456
+---
+# Phone OTP login flow — COMBINED (for reference only)
+#
+# NOTE: This single-file flow does NOT work for real OTP testing because:
+#   - The flow taps "Send Code" (triggering a NEW OTP)
+#   - But TEST_PHONE_OTP must be known BEFORE the flow starts
+#   - These two codes never match → verification always fails
+#
+# Use the two-phase split instead:
+#   Phase 1 — send OTP and stop at OTP entry screen:
+#     maestro test e2e/maestro/07a-phone-login-trigger.yaml
+#   Phase 2 — immediately enter the received SMS code:
+#     maestro test e2e/maestro/07b-phone-login-verify.yaml --env TEST_PHONE_OTP=<code>
+#
+# Alternative: configure a test phone in Supabase dashboard (Auth → Phone →
+#   Test phone numbers) with a fixed OTP, then TEST_PHONE_OTP=<fixed> works here.
+
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible:
+      text: "Welcome Back"
+    timeout: 30000
+
+- tapOn:
+    text: "Login with Phone"
+
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 10000
+
+- assertVisible: "Phone Login"
+- assertVisible: "Enter your phone number to receive a code"
+
+- tapOn:
+    id: "phone-input"
+- inputText: ${TEST_PHONE}
+
+- tapOn:
+    id: "send-code-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter the 6-digit code sent to your phone"
+    timeout: 15000
+
+- assertVisible: "Enter the 6-digit code sent to your phone"
+- assertVisible: "Verification Code"
+
+- tapOn:
+    id: "otp-input"
+- inputText: ${TEST_PHONE_OTP}
+
+- tapOn:
+    id: "verify-button"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "Todos"
+    timeout: 20000
+
+- assertVisible:
+    text: "Todos"

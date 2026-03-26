@@ -1,0 +1,35 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.template.reactnative
+  TEST_EMAIL: e2e_test@gmail.com
+  TEST_PASSWORD: E2ePass123!
+---
+- launchApp: {}
+
+- extendedWaitUntil:
+    visible:
+      text: "Welcome Back"
+    timeout: 30000
+
+- assertVisible: "Welcome Back"
+
+- tapOn:
+    id: "email-input"
+- inputText: ${TEST_EMAIL}
+
+- tapOn:
+    id: "password-input"
+- inputText: ${TEST_PASSWORD}
+
+- tapOn:
+    id: "login-button"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "Todos"
+    timeout: 20000
+
+- assertVisible:
+    text: "Todos"

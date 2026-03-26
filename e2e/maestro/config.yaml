@@ -1,0 +1,6 @@
+env:
+  APP_ID: com.template.reactnative
+  TEST_EMAIL: e2e_test@gmail.com
+  TEST_PASSWORD: E2ePass123!
+  TEST_EMAIL_SIGNUP: e2e_signup_20260322_001@gmail.com
+  TEST_PHONE: "+919182666194"
