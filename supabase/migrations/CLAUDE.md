@@ -34,3 +34,10 @@ SQL migration files applied in order by Supabase CLI (`supabase db push` / `supa
 - `011_chat.sql` — creates chat infrastructure for real-time threads + messages (MVP 3)
   - side-effects: creates tables `chat_threads`, `chat_messages`; creates `is_chat_participant()` SECURITY DEFINER function; creates BEFORE INSERT trigger for `last_message_at` + unread counters; enables RLS + Realtime on both tables
   - tables: `chat_threads { id UUID PK, user_id UUID, merchant_id UUID, last_message_at, unread_by_user, unread_by_merchant, created_at, updated_at }`, `chat_messages { id UUID PK, thread_id FK, sender_id UUID, sender_role ENUM, content TEXT, read_by_user BOOLEAN, read_by_merchant BOOLEAN, created_at }`
+
+- `012_orders.sql` — creates orders + payment_events tables for MVP 4 (Transactions)
+  - side-effects: creates tables `orders`, `payment_events`; enables RLS on both; creates 4 indexes; creates `trg_orders_updated_at` trigger; enables Realtime on `orders`
+  - tables: `orders { id UUID PK, user_id UUID, merchant_id UUID, service_id UUID, status TEXT, quantity INT, total_amount NUMERIC, advance_amount NUMERIC, balance_amount GENERATED, requirements_text, requirements_image_url, razorpay_order_id, razorpay_payment_id, refund_id, scheduled_at, cancellation_policy_snapshot, created_at, updated_at }`, `payment_events { id UUID PK, order_id UUID (nullable), event_type TEXT, razorpay_event_id TEXT UNIQUE, payload JSONB, processed_at }`
+  - gotcha: `payment_events` has RLS enabled but NO user-facing policies — service role only
+  - gotcha: `orders` UPDATE RLS policy does not restrict columns — API layer must enforce column-level restrictions
+  - gotcha: `balance_amount` is `GENERATED ALWAYS AS (total_amount - advance_amount) STORED` — cannot be inserted/updated directly

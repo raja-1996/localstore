@@ -77,6 +77,11 @@ Unit test suite for all API endpoints using mocked Supabase — no live instance
 - `test_chat.py` — unit tests for `/api/v1/chat` endpoints (Sprint 9)
   - tests: GET/POST chats (thread CRUD), GET/POST messages (cursor-paginated), PATCH read status, user-scoped Supabase client
 
+- `test_razorpay.py` — unit tests for `app.core.razorpay` module (Sprint 12)
+  - tests: `verify_webhook_signature` (valid/invalid/empty sig/empty secret/tampered/bytes secret), `RazorpayClient` (create_order, fetch_payment, refund partial/full, API error, context manager, custom currency), migration file existence
+  - deps: `app.core.razorpay`, mocked `httpx` via `patch.object`
+  - pattern: `_compute_sig` helper for HMAC test data; `_make_mock_response`/`_make_error_response` for httpx mocks
+
 - `__init__.py` — empty; marks directory as Python package for pytest import resolution
 
 ## Sub-folders

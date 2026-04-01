@@ -4,6 +4,7 @@ Detailed sprint logs are in [`activity_logs/`](activity_logs/).
 
 | File | Date(s) | Summary |
 |------|---------|---------|
+| [sprint-12.md](activity_logs/sprint-12.md) | Apr 1 | Database + Core Infrastructure (Orders/Payments) |
 | [sprint-11.md](activity_logs/sprint-11.md) | Mar 30 – Apr 1 | Push notifications + E2E regression + LogBox fix |
 | [sprint-10.md](activity_logs/sprint-10.md) | Mar 29 | Chat frontend + Supabase Realtime |
 | [sprint-09.md](activity_logs/sprint-09.md) | Mar 29 | Chat backend + migration (011_chat.sql) |
