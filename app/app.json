@@ -1,33 +1,49 @@
 {
   "expo": {
-    "name": "React Native Template",
-    "slug": "react-native-template",
+    "name": "LocalStore",
+    "slug": "localstore",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "todoapp",
+    "scheme": "localstore",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "plugins": [
       "expo-router",
       "expo-secure-store",
       "expo-image-picker",
-      "expo-image"
+      "expo-image",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.raja.todoapp"
+      "bundleIdentifier": "com.raja.localstore",
+      "associatedDomains": ["applinks:localstore.app"]
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
-      "package": "com.raja.todoapp",
+      "package": "com.raja.localstore",
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "localstore.app",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
       ]
     },
     "extra": {

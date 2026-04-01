@@ -29,3 +29,20 @@ Reusable themed UI primitives and domain-specific widgets for the app.
   - types: `TodoCardProps { title, description?, isCompleted, onPress, onToggle, onLongPress? }`
   - gotcha: checkbox is a nested `<Pressable>` inside the card `<Pressable>` — `onPress` (navigate) and `onToggle` (complete) fire independently
   - gotcha: checkbox `testID` is dynamic: `checkbox-${title.replace(/\s+/g, '-').toLowerCase()}` — must match this pattern in tests
+
+- `SkeletonCard.tsx` — animated loading placeholder for merchant cards
+  - exports: `SkeletonCard`
+  - deps: `./themed-view`, `../hooks/use-theme`, `react-native/Animated`
+  - ui: grey shimmer box animations; matches MerchantCard layout
+
+- `MerchantCard.tsx` — merchant list card; displays name, distance, avatar, category, rating, price range
+  - exports: `MerchantCard`
+  - deps: `./themed-text`, `./themed-view`, `../hooks/use-theme`, `../types/feed`, `../utils/format-distance`, `expo-image`, `expo-blur`
+  - types: `MerchantCardProps { item: NearbyFeedItem, onPress }`
+  - ui: avatar with fallback initial, name + distance badge, category chip, price range star indicator
+
+- `CategoryFilterBar.tsx` — horizontal chip selector for merchant categories
+  - exports: `CategoryFilterBar`
+  - deps: `./themed-text`, `./themed-view`, `../hooks/use-theme`, `../types/feed`
+  - types: `CategoryFilterBarProps { categories: MerchantCategory[], selected?, onSelect }`
+  - ui: ScrollView of category chips; selected has primary background, unselected has outline

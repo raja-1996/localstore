@@ -94,19 +94,19 @@ class TestTokenRefreshIntegration:
 
 class TestProtectedEndpointIntegration:
     def test_missing_authorization_header(self, integration_client):
-        resp = integration_client.get("/api/v1/todos")
+        resp = integration_client.get("/api/v1/users/me")
         assert resp.status_code == 422
 
     def test_invalid_bearer_token(self, integration_client):
         resp = integration_client.get(
-            "/api/v1/todos",
+            "/api/v1/users/me",
             headers={"Authorization": "Bearer invalid.jwt.token"},
         )
         assert resp.status_code == 401
 
     def test_malformed_authorization_header(self, integration_client):
         resp = integration_client.get(
-            "/api/v1/todos",
+            "/api/v1/users/me",
             headers={"Authorization": "NotBearer sometoken"},
         )
         assert resp.status_code == 401
@@ -116,11 +116,11 @@ class TestPhoneOTPIntegration:
     def test_send_phone_otp(self, integration_client):
         """Sending OTP to a real phone number returns 200. Requires Twilio configured in Supabase."""
         resp = integration_client.post(
-            "/api/v1/auth/phone/send-otp",
+            "/api/v1/auth/otp/send",
             json={"phone": TEST_PHONE},
         )
         assert resp.status_code == 200
-        assert resp.json()["message"] == "OTP sent successfully"
+        assert resp.json()["message"] == "OTP sent"
 
     def test_verify_phone_otp(self, integration_client):
         """
@@ -134,8 +134,8 @@ class TestPhoneOTPIntegration:
             pytest.skip("Set TEST_PHONE_OTP=<code> to run this test")
 
         resp = integration_client.post(
-            "/api/v1/auth/phone/verify-otp",
-            json={"phone": TEST_PHONE, "otp": otp},
+            "/api/v1/auth/otp/verify",
+            json={"phone": TEST_PHONE, "token": otp},
         )
         assert resp.status_code == 200
         data = resp.json()

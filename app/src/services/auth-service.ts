@@ -16,10 +16,10 @@ const authService = {
     api.post<AuthResponse>('/auth/login', data),
 
   sendPhoneOtp: (phone: string) =>
-    api.post('/auth/phone/send-otp', { phone }),
+    api.post('/auth/otp/send', { phone }),
 
-  verifyPhoneOtp: (phone: string, otp: string) =>
-    api.post<AuthResponse>('/auth/phone/verify-otp', { phone, otp }),
+  verifyPhoneOtp: (phone: string, token: string) =>
+    api.post<AuthResponse>('/auth/otp/verify', { phone, token }),
 
   refresh: (refreshToken: string) =>
     api.post<AuthResponse>('/auth/refresh', { refresh_token: refreshToken }),

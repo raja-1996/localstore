@@ -29,7 +29,9 @@ export default function PhoneLoginScreen() {
       await sendPhoneOtp(phone);
       setStep('otp');
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.detail || 'Failed to send OTP');
+      const detail = error.response?.data?.detail;
+      const message = Array.isArray(detail) ? detail[0]?.msg || 'Failed to send OTP' : detail || 'Failed to send OTP';
+      Alert.alert('Error', message);
     } finally {
       setLoading(false);
     }
@@ -43,9 +45,11 @@ export default function PhoneLoginScreen() {
     setLoading(true);
     try {
       await verifyPhoneOtp(phone, otp);
-      router.replace('/(app)/todos');
+      router.replace('/(app)/feed');
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.detail || 'Invalid OTP');
+      const detail = error.response?.data?.detail;
+      const message = Array.isArray(detail) ? detail[0]?.msg || 'Invalid OTP' : detail || 'Invalid OTP';
+      Alert.alert('Error', message);
     } finally {
       setLoading(false);
     }

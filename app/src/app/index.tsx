@@ -15,10 +15,10 @@ export default function Index() {
   }
 
   if (isAuthenticated) {
-    return <Redirect href="/(app)/todos" />;
+    return <Redirect href="/(app)/feed" />;
   }
 
-  return <Redirect href="/(auth)/login" />;
+  return <Redirect href="/(auth)/phone-login" />;
 }
 
 const styles = StyleSheet.create({

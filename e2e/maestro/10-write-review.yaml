@@ -1,0 +1,255 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.raja.localstore
+  TEST_PHONE: "+919182666194"
+  TEST_PHONE_OTP: "123456"
+---
+# S7-E1 — Write a Review flow.
+# Verifies: login → feed visible → tap merchant card → scroll to reviews →
+#           tap Write a Review → modal opens → tap star 4 → type body →
+#           submit → modal closes → review text visible → avg-rating visible.
+# Prerequisite: seed data loaded (supabase/seed.sql); run after 09-follow-merchant.
+
+- launchApp:
+    appId: ${APP_ID}
+    clearState: true
+
+- waitForAnimationToEnd
+
+# --- Login ---
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 30000
+
+- tapOn:
+    id: "phone-input"
+- inputText: ${TEST_PHONE}
+
+- tapOn:
+    id: "send-code-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter the 6-digit code sent to your phone"
+    timeout: 15000
+
+- tapOn:
+    id: "otp-input"
+- inputText: ${TEST_PHONE_OTP}
+
+- tapOn:
+    id: "verify-button"
+
+- waitForAnimationToEnd
+
+# --- Location permission (app-level custom button) ---
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+# --- Android system dialogs (may appear 1-2 times) ---
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# --- Wait for feed to load ---
+- extendedWaitUntil:
+    visible:
+      id: "merchant-card"
+    timeout: 25000
+
+# Dismiss any dialog that snuck in during loading
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# Second location permission handler (may appear after feed loads)
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# --- Assert feed screen is visible ---
+- assertVisible:
+    id: "merchant-card"
+
+# --- Tap first merchant card to open detail ---
+- tapOn:
+    id: "merchant-card"
+
+- waitForAnimationToEnd
+
+# --- Merchant detail screen ---
+- extendedWaitUntil:
+    visible:
+      id: "merchant-detail-screen"
+    timeout: 15000
+
+- assertVisible:
+    id: "merchant-name"
+
+# --- Scroll to write-review-button and center it ---
+- scrollUntilVisible:
+    element:
+      id: "write-review-button"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+
+# --- If edit mode (previous review exists), delete it first for idempotency ---
+- runFlow:
+    when:
+      visible: "Edit Your Review"
+    commands:
+      - tapOn:
+          id: "write-review-button"
+      - extendedWaitUntil:
+          visible:
+            id: "review-modal"
+          timeout: 20000
+      - tapOn:
+          id: "review-delete-button"
+      - waitForAnimationToEnd
+      # Confirm deletion on the alert dialog
+      - tapOn: "Delete"
+      - extendedWaitUntil:
+          notVisible:
+            id: "review-modal"
+          timeout: 10000
+      - waitForAnimationToEnd
+      # Wait for query cache to refresh and button text to update
+      - extendedWaitUntil:
+          visible:
+            text: "Write a Review"
+          timeout: 10000
+      # Re-scroll to button after re-render
+      - scrollUntilVisible:
+          element:
+            id: "write-review-button"
+          direction: DOWN
+          timeout: 15000
+          centerElement: true
+
+# --- Tap Write a Review button (always create mode now) ---
+- tapOn:
+    id: "write-review-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "review-modal"
+    timeout: 20000
+
+- assertVisible:
+    id: "review-modal"
+
+# --- Tap 4th star (accessibilityLabel "4 stars") ---
+- tapOn:
+    text: "4 stars"
+
+- waitForAnimationToEnd
+
+# --- Type review body (input is empty in create mode — no eraseText needed) ---
+- tapOn:
+    id: "review-body-input"
+- inputText: "Great service, highly recommend!"
+
+# Dismiss keyboard by tapping star area (above keyboard, safe — keeps modal open)
+- tapOn:
+    text: "4 stars"
+
+- waitForAnimationToEnd
+
+# --- Tap submit ---
+- tapOn:
+    id: "review-submit-button"
+
+- waitForAnimationToEnd
+
+# --- Dismiss any error alert ---
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+      - waitForAnimationToEnd
+
+# --- Wait for modal to close after successful submit ---
+- extendedWaitUntil:
+    notVisible:
+      id: "review-modal"
+    timeout: 10000
+
+# --- Assert modal is closed ---
+- assertNotVisible:
+    id: "review-modal"
+
+# --- Navigate back and re-enter for fresh render ---
+- tapOn:
+    id: "back-button"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "merchant-card"
+    timeout: 15000
+- tapOn:
+    id: "merchant-card"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "merchant-detail-screen"
+    timeout: 15000
+
+# --- Scroll to reviews section ---
+- scrollUntilVisible:
+    element:
+      id: "reviews-avg-rating"
+    direction: DOWN
+    timeout: 15000
+
+# --- Assert review was submitted: avg-rating visible + review body + edit button ---
+- assertVisible:
+    id: "reviews-avg-rating"
+
+- scrollUntilVisible:
+    element:
+      id: "review-body-text"
+    direction: DOWN
+    timeout: 10000
+
+- assertVisible:
+    id: "review-body-text"
+
+- scrollUntilVisible:
+    element:
+      text: "Edit Your Review"
+    direction: DOWN
+    timeout: 10000
+
+- assertVisible:
+    text: "Edit Your Review"

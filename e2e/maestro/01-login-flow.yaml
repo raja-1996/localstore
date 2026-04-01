@@ -1,0 +1,89 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.raja.localstore
+  TEST_PHONE: "+919182666194"
+  TEST_PHONE_OTP: "123456"
+---
+# Phone OTP full login smoke test.
+# Test credentials: +919182666194 / OTP: 123456 (Supabase test number)
+
+- launchApp:
+    appId: ${APP_ID}
+    clearState: true
+
+- waitForAnimationToEnd
+
+# Sign out if already logged in (clearState doesn't clear expo-secure-store on Android)
+- runFlow:
+    when:
+      visible: "Sign Out"
+    commands:
+      - tapOn: "Sign Out"
+      - extendedWaitUntil:
+          visible:
+            text: "Logout"
+          timeout: 5000
+      - tapOn: "Logout"
+      - waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 30000
+
+- assertVisible: "Phone Login"
+- assertVisible: "Enter your phone number to receive a code"
+
+- tapOn:
+    id: "phone-input"
+- inputText: ${TEST_PHONE}
+
+- tapOn:
+    id: "send-code-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter the 6-digit code sent to your phone"
+    timeout: 15000
+
+- assertVisible: "Enter the 6-digit code sent to your phone"
+
+- tapOn:
+    id: "otp-input"
+- inputText: ${TEST_PHONE_OTP}
+
+- tapOn:
+    id: "verify-button"
+
+- waitForAnimationToEnd
+
+# --- Post-login: app redirects to Feed tab ---
+# Handle location permission dialogs
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      id: "merchant-card"
+    timeout: 25000
+
+- assertVisible:
+    id: "merchant-card"

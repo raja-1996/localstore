@@ -1,23 +1,26 @@
 # core/
-Shared infrastructure for the FastAPI backend: settings, Supabase clients, and JWT auth dependency.
+Shared infrastructure for the LocalStore FastAPI backend: settings, Supabase clients, JWT auth, and Razorpay client.
 
-- `__init__.py` — empty package marker; no exports
+- `__init__.py` — empty package marker
 - `config.py` — Pydantic `Settings` singleton loaded from `.env`
   - exports: `settings` (module-level instance of `Settings`)
-  - deps: `pydantic_settings`
-  - types: `Settings {debug: bool, supabase_url: str, supabase_publishable_default_key: str, supabase_secret_default_key: str, cors_origins: list[str]}`
-  - side-effects: reads `.env` file at import time via `SettingsConfigDict`
-  - env: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_DEFAULT_KEY`, `SUPABASE_SECRET_DEFAULT_KEY`, `DEBUG`, `CORS_ORIGINS`
-  - gotcha: `settings` is instantiated at module import — missing required env vars raise `ValidationError` immediately on startup
+  - types: `Settings { supabase_url, supabase_publishable_default_key, supabase_secret_default_key, razorpay_key_id, razorpay_key_secret, razorpay_webhook_secret, sarvam_api_key, llm_api_key, llm_provider, cors_origins, debug }`
+  - gotcha: instantiated at module import — missing required env vars raise `ValidationError` on startup
+
 - `auth.py` — FastAPI dependency that validates Bearer JWT and returns user dict
   - exports: `get_current_user` (async function, inject via `Depends(get_current_user)`)
-  - deps: `./supabase`, `fastapi`
-  - types: returns `{"id": str, "email": str, "token": str}`
-  - side-effects: calls Supabase Auth API (`supabase.auth.get_user(token)`) on every request
-  - gotcha: bare `except Exception` catches all errors and re-raises as 401; Supabase SDK exceptions are not distinguished from network errors
+  - returns: `{"id": str, "phone": str, "token": str}`
+  - gotcha: bare `except Exception` catches all errors as 401 — masks 503 network errors from Supabase
+
 - `supabase.py` — factory functions for two Supabase client types
-  - exports: `get_supabase` (cached admin/service-role client), `get_user_supabase` (per-request user-scoped client)
-  - deps: `./config`, `supabase` (SDK)
-  - side-effects: `get_supabase` makes one `create_client` call (cached via `lru_cache`); `get_user_supabase` creates a new client on every call
-  - pattern: singleton (service-role), factory (user-scoped)
-  - gotcha: `get_supabase` uses `supabase_secret_default_key` (service role — bypasses RLS); `get_user_supabase` uses `supabase_publishable_default_key` with JWT header to enforce RLS — use the correct client per operation
+  - exports: `get_supabase()` (cached service-role singleton), `get_user_supabase(token)` (per-request user-scoped), `_make_service_client()` (fresh service-role client factory)
+  - `get_supabase` uses `supabase_secret_default_key` — bypasses RLS, for: auth admin, payment_events, merchant_insights, background tasks
+  - `get_user_supabase` uses `supabase_publishable_default_key` + JWT header — enforces RLS
+  - `_make_service_client()` creates fresh service-role client without caching — used by auth endpoints to prevent token mutation corrupting cached client
+  - gotcha: `get_supabase` cached via `lru_cache`; tests must call `.cache_clear()` after config reload
+
+- `razorpay.py` — Razorpay API client wrapper (MVP 4+)
+  - exports: `RazorpayClient { create_order, fetch_payment, refund }`, `verify_webhook_signature(body, signature, secret)`
+  - deps: `httpx` (async HTTP client), `hmac` + `hashlib` (stdlib)
+  - pattern: thin wrapper around Razorpay REST API v1, base URL `https://api.razorpay.com/v1`
+  - gotcha: `verify_webhook_signature` uses `hmac.compare_digest` for timing-safe comparison

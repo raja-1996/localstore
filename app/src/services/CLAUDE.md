@@ -22,3 +22,41 @@ Thin API client wrappers — one module per backend resource domain.
     - `TodoCreate { title: string, description?: string }`
     - `TodoUpdate { title?, description?, is_completed?, image_path?: string|null }`
   - side-effects: API calls to `/todos` and `/todos/:id`
+
+- `feed-service.ts` — fetch nearby merchants with cursor-based pagination
+  - exports: `feedService` (default)
+  - deps: `../lib/api`
+  - methods: `getNearbyFeed(lat, lng, category?, cursor?, limit?)` — returns `NearbyFeedResponse { items: NearbyFeedItem[], nextCursor }`
+  - types: `NearbyFeedItem`, `NearbyFeedResponse` imported from `../types/feed`
+
+- `merchant-service.ts` — fetch merchant profile, services, and portfolio images
+  - exports: `merchantService` (default)
+  - deps: `../lib/api`
+  - methods:
+    - `getMerchant(id)` — returns `MerchantDetail`
+    - `getServices(merchantId)` — returns `ServiceResponse[]`
+    - `getPortfolio(merchantId)` — returns `PortfolioImage[]`
+    - `createMerchant(data)` — POST `/merchants` with profile and location
+  - types: `MerchantDetail`, `ServiceResponse`, `PortfolioImage` imported from `../types/merchant`
+
+- `search-service.ts` — search merchants and services across the platform
+  - exports: `searchService` (default)
+  - deps: `../lib/api`
+  - methods: `search(query, category?, lat?, lng?)` — returns `SearchResult { merchants, services }`
+  - types: `SearchResult`, `SearchMerchant`, `SearchService` imported from `../types/search`
+
+- `user-service.ts` — fetch and update user profile
+  - exports: `userService` (default)
+  - deps: `../lib/api`
+  - methods:
+    - `getProfile()` — returns `UserProfile`
+    - `updateProfile(data)` — PATCH `/users/me`
+    - `saveMerchant(merchantId)` — POST `/users/me/saved`
+    - `registerPushToken(token)` — PUT `/users/me/push-token` (Sprint 11)
+  - types: `UserProfile` imported from `../types/user`
+
+- `chat-service.ts` — chat endpoints: thread list, messages, send message, mark read
+  - exports: `chatService` (default)
+  - deps: `../lib/api`
+  - methods: `getThreads(limit?, cursor?)`, `createThread(merchantId)`, `getMessages(threadId, cursor?)`, `sendMessage(threadId, content)`, `markRead(threadId)`
+  - side-effects: API calls to `/chats/*`

@@ -1,42 +1,15 @@
-import { useEffect, useRef } from 'react';
 import { StyleSheet } from 'react-native';
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../hooks/use-theme';
-import {
-  registerForPushNotifications,
-  addNotificationListener,
-  addNotificationResponseListener,
-} from '../../lib/notifications';
+import { useTheme } from '@/hooks/use-theme';
+import { useChatStore } from '@/stores/chat-store';
+import { usePushNotifications } from '@/hooks/use-push-notifications';
 
 export default function AppLayout() {
   const colors = useTheme();
-  const router = useRouter();
-  const notificationListener = useRef<{ remove: () => void } | null>(null);
-  const responseListener = useRef<{ remove: () => void } | null>(null);
+  const totalUnread = useChatStore((s) => s.totalUnread);
 
-  useEffect(() => {
-    registerForPushNotifications().catch(() => {
-      // permission denied or simulator — silently ignore
-    });
-
-    notificationListener.current = addNotificationListener((_notification) => {
-      // no-op: notification received in foreground
-    });
-
-    responseListener.current = addNotificationResponseListener((response) => {
-      const todoId = response.notification.request.content.data?.todoId;
-      if (todoId) {
-        router.push({ pathname: '/(app)/todo-detail', params: { id: todoId } });
-      }
-    });
-
-    return () => {
-      notificationListener.current?.remove();
-      responseListener.current?.remove();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  usePushNotifications();
 
   return (
     <Tabs
@@ -53,38 +26,94 @@ export default function AppLayout() {
         headerTintColor: colors.text,
       }}
     >
+      {/* Feed tab */}
       <Tabs.Screen
-        name="todos"
+        name="feed/index"
         options={{
-          title: 'Todos',
+          title: 'Near Me',
+          tabBarButtonTestID: 'tab-feed',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="checkmark-circle-outline" size={size} color={color} />
+            <Ionicons name="location-outline" size={size} color={color} />
           ),
         }}
       />
+
+      {/* Search tab */}
       <Tabs.Screen
-        name="realtime"
+        name="search/index"
         options={{
-          title: 'Realtime',
+          title: 'Search',
+          tabBarButtonTestID: 'tab-search',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="radio-outline" size={size} color={color} />
+            <Ionicons name="search-outline" size={size} color={color} />
           ),
+        }}
+      />
+
+      {/* Chat tab */}
+      <Tabs.Screen
+        name="chat/index"
+        options={{
+          title: 'Chat',
+          tabBarButtonTestID: 'tab-chat',
+          tabBarBadge: totalUnread > 0 ? (totalUnread > 99 ? '99+' : totalUnread) : undefined,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubble-outline" size={size} color={color} />
+          ),
+        }}
+      />
+
+      {/* Profile tab */}
+      <Tabs.Screen
+        name="profile/index"
+        options={{
+          title: 'Profile',
+          tabBarButtonTestID: 'tab-profile',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" size={size} color={color} />
+          ),
+        }}
+      />
+
+      {/* Hidden routes — not shown in tab bar */}
+      <Tabs.Screen
+        name="chat/[threadId]"
+        options={{
+          href: null,
+          headerShown: true,
+          title: 'Chat',
+        }}
+      />
+      <Tabs.Screen
+        name="merchant/[id]"
+        options={{
+          href: null,
+          headerShown: true,
+          title: '',
+        }}
+      />
+      <Tabs.Screen
+        name="merchant/create"
+        options={{
+          href: null,
+          headerShown: true,
+          title: 'Become a Merchant',
+        }}
+      />
+      <Tabs.Screen
+        name="profile/merchant"
+        options={{
+          href: null,
+          headerShown: true,
+          title: 'My Merchant Profile',
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-circle-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="todo-detail"
-        options={{
           href: null,
-          title: 'Todo',
+          headerShown: false,
+          title: 'Settings',
         }}
       />
     </Tabs>

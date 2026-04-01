@@ -1,8 +1,6 @@
 import * as Device from 'expo-device';
-import notificationsService from '../services/notifications-service';
+import { Platform } from 'react-native';
 
-// expo-notifications remote push was removed from Expo Go in SDK 53.
-// Use require() so the throw is catchable (static imports throw before any code runs).
 let Notifications: typeof import('expo-notifications') | null = null;
 try {
   Notifications = require('expo-notifications');
@@ -14,59 +12,39 @@ try {
     }),
   });
 } catch {
-  // Not available in Expo Go SDK 53+ — silently skip
+  console.warn('expo-notifications not available (Expo Go SDK 53+)');
 }
 
+/**
+ * Request notification permissions (iOS) and get Expo push token.
+ * Returns token string or null if permissions denied / not a device.
+ */
 export async function registerForPushNotifications(): Promise<string | null> {
-  if (!Notifications || !Device.isDevice) {
-    return null;
+  if (!Notifications || !Device.isDevice) return null;
+
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
   }
-  try {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
 
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
+  if (finalStatus !== 'granted') return null;
 
-    if (finalStatus !== 'granted') {
-      return null;
-    }
-
-    const tokenData = await Notifications.getExpoPushTokenAsync();
-    const token = tokenData.data;
-
-    try {
-      await notificationsService.registerToken(token);
-    } catch {
-      // Silently fail — token registration is not critical
-    }
-
-    return token;
-  } catch {
-    return null;
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'Default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+    });
   }
+
+  const tokenData = await Notifications.getExpoPushTokenAsync({
+    projectId: '52d0c1e4-b023-4322-8426-a078b32f403a',
+  });
+
+  return tokenData.data;
 }
 
-export function addNotificationListener(
-  handler: (notification: any) => void
-) {
-  if (!Notifications) return { remove: () => {} };
-  try {
-    return Notifications.addNotificationReceivedListener(handler);
-  } catch {
-    return { remove: () => {} };
-  }
-}
-
-export function addNotificationResponseListener(
-  handler: (response: any) => void
-) {
-  if (!Notifications) return { remove: () => {} };
-  try {
-    return Notifications.addNotificationResponseReceivedListener(handler);
-  } catch {
-    return { remove: () => {} };
-  }
-}
+export { Notifications };

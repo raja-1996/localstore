@@ -1,0 +1,20 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.raja.localstore
+---
+# Auth guard — verifies unauthenticated users land on phone login screen.
+# Uses clearState: true to simulate a fresh install with no stored session.
+
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 30000
+
+- assertVisible: "Phone Login"
+- assertVisible: "Enter your phone number to receive a code"
+
+- assertVisible:
+    id: "phone-input"

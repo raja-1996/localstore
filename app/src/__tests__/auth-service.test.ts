@@ -16,7 +16,7 @@ const mockAuthResponse = {
     refresh_token: 'refresh-xyz',
     token_type: 'bearer',
     expires_in: 3600,
-    user: { id: 'user-1', email: 'test@example.com' },
+    user: { id: 'user-1', email: 'test@example.com', phone: '+919876543210' },
   },
 };
 
@@ -151,12 +151,12 @@ describe('authService', () => {
   });
 
   describe('verifyPhoneOtp', () => {
-    it('calls POST /auth/phone/verify-otp with phone and otp', async () => {
+    it('calls POST /auth/otp/verify with phone and token', async () => {
       mockApi.post.mockResolvedValueOnce(mockAuthResponse);
       await authService.verifyPhoneOtp('+1234567890', '123456');
-      expect(mockApi.post).toHaveBeenCalledWith('/auth/phone/verify-otp', {
+      expect(mockApi.post).toHaveBeenCalledWith('/auth/otp/verify', {
         phone: '+1234567890',
-        otp: '123456',
+        token: '123456',
       });
     });
 
@@ -164,6 +164,7 @@ describe('authService', () => {
       mockApi.post.mockResolvedValueOnce(mockAuthResponse);
       const result = await authService.verifyPhoneOtp('+1234567890', '123456');
       expect(result.data.user.id).toBe('user-1');
+      expect(result.data.user.phone).toBe('+919876543210');
     });
 
     it('rejects when OTP is invalid', async () => {
@@ -176,10 +177,10 @@ describe('authService', () => {
   });
 
   describe('sendPhoneOtp', () => {
-    it('calls POST /auth/phone/send-otp with phone', async () => {
+    it('calls POST /auth/otp/send with phone', async () => {
       mockApi.post.mockResolvedValueOnce({ data: {} });
       await authService.sendPhoneOtp('+1234567890');
-      expect(mockApi.post).toHaveBeenCalledWith('/auth/phone/send-otp', {
+      expect(mockApi.post).toHaveBeenCalledWith('/auth/otp/send', {
         phone: '+1234567890',
       });
     });

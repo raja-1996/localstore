@@ -47,19 +47,6 @@ jest.mock('../stores/auth-store', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock use-todos hooks
-// ---------------------------------------------------------------------------
-const mockRefetch = jest.fn();
-const mockUpdateTodoMutate = jest.fn();
-const mockDeleteTodoMutate = jest.fn();
-
-jest.mock('../hooks/use-todos', () => ({
-  useTodos: jest.fn(),
-  useUpdateTodo: jest.fn(() => ({ mutate: mockUpdateTodoMutate })),
-  useDeleteTodo: jest.fn(() => ({ mutate: mockDeleteTodoMutate })),
-}));
-
-// ---------------------------------------------------------------------------
 // Mock expo-router
 // ---------------------------------------------------------------------------
 const mockRouterPush = jest.fn();
@@ -113,11 +100,9 @@ jest.mock('expo-secure-store', () => ({
 // ---------------------------------------------------------------------------
 import LoginScreen from '../app/(auth)/login';
 import SignupScreen from '../app/(auth)/signup';
-import TodosScreen from '../app/(app)/todos';
 import SettingsScreen from '../app/(app)/settings';
 import PhoneLoginScreen from '../app/(auth)/phone-login';
 
-import { useTodos, useUpdateTodo, useDeleteTodo } from '../hooks/use-todos';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../stores/auth-store';
 import storageService from '../services/storage-service';
@@ -453,124 +438,6 @@ describe('SignupScreen', () => {
     fireEvent.press(screen.getByTestId('signup-button'));
     await waitFor(() => {
       expect(screen.UNSAFE_queryAllByType(require('react-native').ActivityIndicator).length).toBe(0);
-    });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Todos Screen
-// ---------------------------------------------------------------------------
-describe('TodosScreen', () => {
-  let alertSpy: jest.SpyInstance;
-
-  const mockTodos = [
-    { id: 'todo-1', title: 'Buy milk', description: 'From the store', is_completed: false },
-    { id: 'todo-2', title: 'Read book', description: undefined, is_completed: true },
-  ];
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
-    (useTodos as jest.Mock).mockReturnValue({ data: [], isLoading: false, refetch: mockRefetch });
-    (useUpdateTodo as jest.Mock).mockReturnValue({ mutate: mockUpdateTodoMutate });
-    (useDeleteTodo as jest.Mock).mockReturnValue({ mutate: mockDeleteTodoMutate });
-  });
-
-  afterEach(() => {
-    alertSpy.mockRestore();
-  });
-
-  it('renders a list of todo cards when todos are present', () => {
-    (useTodos as jest.Mock).mockReturnValue({ data: mockTodos, isLoading: false, refetch: mockRefetch });
-    render(<TodosScreen />);
-    expect(screen.getByText('Buy milk')).toBeTruthy();
-    expect(screen.getByText('Read book')).toBeTruthy();
-  });
-
-  it('renders empty state text when todos list is empty and not loading', () => {
-    render(<TodosScreen />);
-    expect(screen.getByText('No todos yet')).toBeTruthy();
-  });
-
-  it('does not render empty state when isLoading is true', () => {
-    (useTodos as jest.Mock).mockReturnValue({ data: [], isLoading: true, refetch: mockRefetch });
-    render(<TodosScreen />);
-    expect(screen.queryByText('No todos yet')).toBeNull();
-  });
-
-  it('renders the FAB "+" button', () => {
-    render(<TodosScreen />);
-    expect(screen.getByText('+')).toBeTruthy();
-  });
-
-  it('pressing the FAB calls router.push to todo-detail with no id param', () => {
-    render(<TodosScreen />);
-    fireEvent.press(screen.getByText('+'));
-    expect(mockRouterPush).toHaveBeenCalledWith({ pathname: '/(app)/todo-detail' });
-  });
-
-  it('pressing a TodoCard calls router.push to todo-detail with the todo id', () => {
-    (useTodos as jest.Mock).mockReturnValue({ data: mockTodos, isLoading: false, refetch: mockRefetch });
-    render(<TodosScreen />);
-    fireEvent.press(screen.getByText('Buy milk'));
-    expect(mockRouterPush).toHaveBeenCalledWith({
-      pathname: '/(app)/todo-detail',
-      params: { id: 'todo-1' },
-    });
-  });
-
-  it('pressing the toggle on a TodoCard calls updateTodo.mutate with correct payload', () => {
-    (useTodos as jest.Mock).mockReturnValue({ data: mockTodos, isLoading: false, refetch: mockRefetch });
-    render(<TodosScreen />);
-    fireEvent.press(screen.getByTestId('checkbox-buy-milk'));
-    expect(mockUpdateTodoMutate).toHaveBeenCalledWith({
-      id: 'todo-1',
-      data: { is_completed: true },
-    });
-  });
-
-  it('long pressing a TodoCard shows the delete confirmation Alert', () => {
-    (useTodos as jest.Mock).mockReturnValue({ data: mockTodos, isLoading: false, refetch: mockRefetch });
-    render(<TodosScreen />);
-    fireEvent(screen.getByText('Buy milk'), 'longPress');
-    expect(alertSpy).toHaveBeenCalledWith(
-      'Delete Todo',
-      'Are you sure you want to delete this todo?',
-      expect.any(Array),
-    );
-  });
-
-  it('pressing Delete in the alert calls deleteTodo.mutate with the todo id', () => {
-    (useTodos as jest.Mock).mockReturnValue({ data: mockTodos, isLoading: false, refetch: mockRefetch });
-    render(<TodosScreen />);
-    fireEvent(screen.getByText('Buy milk'), 'longPress');
-    const alertButtons = alertSpy.mock.calls[0][2] as any[];
-    const deleteBtn = alertButtons.find((b: any) => b.text === 'Delete');
-    deleteBtn.onPress();
-    expect(mockDeleteTodoMutate).toHaveBeenCalledWith('todo-1');
-  });
-
-  it('pressing Cancel in the alert does not call deleteTodo.mutate', () => {
-    (useTodos as jest.Mock).mockReturnValue({ data: mockTodos, isLoading: false, refetch: mockRefetch });
-    render(<TodosScreen />);
-    fireEvent(screen.getByText('Buy milk'), 'longPress');
-    const alertButtons = alertSpy.mock.calls[0][2] as any[];
-    const cancelBtn = alertButtons.find((b: any) => b.text === 'Cancel');
-    if (cancelBtn.onPress) cancelBtn.onPress();
-    expect(mockDeleteTodoMutate).not.toHaveBeenCalled();
-  });
-
-  it('onRefresh calls refetch and resets refreshing state after completion', async () => {
-    mockRefetch.mockResolvedValueOnce(undefined);
-    (useTodos as jest.Mock).mockReturnValue({ data: [], isLoading: false, refetch: mockRefetch });
-    render(<TodosScreen />);
-    const refreshControl = screen.UNSAFE_getByType(require('react-native').RefreshControl);
-    await act(async () => {
-      refreshControl.props.onRefresh();
-    });
-    expect(mockRefetch).toHaveBeenCalledTimes(1);
-    await waitFor(() => {
-      expect(refreshControl.props.refreshing).toBe(false);
     });
   });
 });

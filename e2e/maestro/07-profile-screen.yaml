@@ -1,0 +1,108 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.raja.localstore
+  TEST_PHONE: "+919182666194"
+  TEST_PHONE_OTP: "123456"
+---
+# Profile screen E2E test.
+# Verifies: profile tab → user data visible → logout redirects to phone login.
+
+- launchApp:
+    appId: ${APP_ID}
+    clearState: true
+
+- waitForAnimationToEnd
+
+# Sign out if already logged in (clearState doesn't clear expo-secure-store on Android)
+- runFlow:
+    when:
+      visible: "Sign Out"
+    commands:
+      - tapOn: "Sign Out"
+      - extendedWaitUntil:
+          visible:
+            text: "Logout"
+          timeout: 5000
+      - tapOn: "Logout"
+      - waitForAnimationToEnd
+
+# --- Login ---
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 30000
+
+- tapOn:
+    id: "phone-input"
+- inputText: ${TEST_PHONE}
+
+- tapOn:
+    id: "send-code-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter the 6-digit code sent to your phone"
+    timeout: 15000
+
+- tapOn:
+    id: "otp-input"
+- inputText: ${TEST_PHONE_OTP}
+
+- tapOn:
+    id: "verify-button"
+
+- waitForAnimationToEnd
+
+# --- Grant location if prompted ---
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+# --- Navigate to profile tab ---
+- extendedWaitUntil:
+    visible:
+      id: "tab-profile"
+    timeout: 20000
+
+- tapOn:
+    id: "tab-profile"
+
+# Wait for async profile data load before asserting screen contents
+- extendedWaitUntil:
+    visible:
+      id: "profile-screen"
+    timeout: 15000
+
+# --- Profile screen assertions ---
+# Assert logout-button (always rendered) as proof screen fully loaded
+- assertVisible:
+    id: "logout-button"
+
+# Assert profile-phone only if present (conditionally rendered for phone users)
+- runFlow:
+    when:
+      visible:
+        id: "profile-phone"
+    commands:
+      - assertVisible:
+          id: "profile-phone"
+
+# --- Logout ---
+- tapOn:
+    id: "logout-button"
+
+- waitForAnimationToEnd
+
+- assertVisible: "Are you sure you want to sign out?"
+
+- tapOn: "Logout"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 20000

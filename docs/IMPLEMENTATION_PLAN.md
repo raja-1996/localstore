@@ -1,434 +1,435 @@
-# Implementation Plan
+# LocalStore — Implementation Plan
 
-Minimal template showcasing Supabase + React Native (Expo) capabilities.
+Hyperlocal services marketplace: React Native (Expo) + FastAPI + Supabase. Six incremental MVPs, each validating a core hypothesis before proceeding.
 
 ## Feature Overview
 
-| # | Feature | Priority | Layer |
-|---|---------|----------|-------|
-| 1 | Email signup & login | P0 | Auth |
-| 2 | Logout | P0 | Auth |
-| 3 | Delete account | P0 | Auth |
-| 4 | Todos CRUD | P0 | Data |
-| 5 | Phone OTP login | P1 | Auth |
-| 6 | Image upload (avatar + gallery) | P1 | Storage |
-| 7 | Realtime playground | P1 | Realtime |
-| 8 | Push notifications | P1 | Notifications |
+| MVP | Theme | Key Features | Backend Routes | Frontend Screens |
+|-----|-------|-------------|----------------|-----------------|
+| Foundation | Infra | Migrations, config, scaffold | — | — |
+| 1 | Discovery | Auth, merchants, services, portfolio, feed, search | auth, merchants, services, portfolio, feed, search, storage, users | (auth)/, feed/, merchant/, search/, profile/ |
+| 2 | Trust | Follow, ratings, reviews, likes, comments | follows, reviews, likes, comments | Follow button, review form, social indicators |
+| 3 | Engagement | Chat, merchant posts, push notifications | chat, posts + push background tasks | chat/, post feed |
+| 4 | Transactions | Orders, payments (Razorpay), status tracker | orders, payments | orders/, Razorpay SDK |
+| 5 | Social | Recommendations, referrals, leaderboard | recommendations, referrals, leaderboard | recommendations/, share cards |
+| 6 | Intelligence | Voice search, festivals, need posts, insights | voice, festivals, need_posts, insights | voice/, festival/, need-posts/ |
 
 ---
 
-## Phase 1 — Foundation (Backend + DB + Auth)
+## Foundation (Pre-MVP 1 — No UI)
 
-### 1.1 Supabase Migrations
+### F.1 Supabase Migrations
 
-**File**: `supabase/migrations/001_initial_schema.sql`
+**Files**: `supabase/migrations/001_extensions.sql` through `009_intelligence.sql`
 
-```sql
--- profiles (auto-created on signup via trigger)
-CREATE TABLE profiles (
-  id         UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email      TEXT,
-  full_name  TEXT,
-  avatar_url TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
+| Migration | Tables / Extensions | Key Details |
+|-----------|-------------------|-------------|
+| `001_extensions.sql` | `postgis`, `pg_trgm`, `uuid-ossp` | Must run first — geo and search depend on these |
+| `002_profiles.sql` | `profiles` | Auto-create trigger on `auth.users`, phone OTP fields, badge/recommendation_count (MVP 5) |
+| `003_merchants.sql` | `merchants` | PostGIS `GEOGRAPHY(POINT, 4326)`, GIST index, search vector trigger, denormalized counts |
+| `004_services_portfolio.sql` | `services`, `portfolio_images` | Service catalog + work gallery, sort_order for portfolio |
+| `005_social.sql` | `follows`, `reviews`, `posts`, `likes`, `comments` | All count triggers (follower, rating, like, comment), self-review prevention |
+| `006_chat.sql` | `chat_threads`, `chat_messages` | Realtime enabled, `read_by_user`/`read_by_merchant` booleans, thread `last_message_at` trigger |
+| `007_orders.sql` | `orders`, `payment_events` | State CHECK constraint, `payment_events` RLS enabled with NO user policies (service role only), Realtime on orders |
+| `008_recommendations.sql` | `recommendations`, `referrals` | Badge promotion trigger on `recommendation_count` threshold |
+| `009_intelligence.sql` | `voice_requests`, `festival_plans`, `need_posts`, `merchant_insights` | `need_posts.expires_at` for auto-close, `merchant_insights` service-role-only write |
 
--- todos (simple CRUD entity)
-CREATE TABLE todos (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  title      TEXT NOT NULL,
-  description TEXT DEFAULT '',
-  image_path TEXT,
-  is_completed BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
+**Storage buckets** (created by migrations):
 
--- RLS
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
+| Bucket | Access | Migration |
+|--------|--------|-----------|
+| `user-avatars` | Public | 002 |
+| `merchant-avatars` | Public | 003 |
+| `portfolio-images` | Public | 004 |
+| `post-media` | Public | 005 |
+| `chat-attachments` | Private | 006 |
+| `video-intros` | Public | 009 |
+| `voice-uploads` | Private | 009 |
 
--- profiles: read all, update own
-CREATE POLICY profiles_select ON profiles FOR SELECT TO authenticated USING (true);
-CREATE POLICY profiles_update ON profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
-
--- todos: full CRUD, own only
-CREATE POLICY todos_select ON todos FOR SELECT TO authenticated USING (auth.uid() = user_id);
-CREATE POLICY todos_insert ON todos FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
-CREATE POLICY todos_update ON todos FOR UPDATE TO authenticated USING (auth.uid() = user_id);
-CREATE POLICY todos_delete ON todos FOR DELETE TO authenticated USING (auth.uid() = user_id);
-
--- indexes
-CREATE INDEX idx_todos_user ON todos(user_id, created_at DESC);
-
--- auto-create profile on signup
-CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS trigger AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email)
-  VALUES (NEW.id, NEW.email);
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
-
--- auto-update updated_at
-CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS trigger AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER todos_updated_at BEFORE UPDATE ON todos
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
-CREATE TRIGGER profiles_updated_at BEFORE UPDATE ON profiles
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
--- enable realtime on todos
-ALTER PUBLICATION supabase_realtime ADD TABLE todos;
-```
-
-### 1.2 Supabase Config
-
-**File**: `supabase/config.toml`
-
-- Email auth enabled, phone auth enabled
-- Email confirmations disabled (dev convenience)
-- Storage: 50 MiB file limit
-- Realtime enabled
-
-### 1.3 Backend — Core
+### F.2 Backend Core
 
 **Files to create:**
 
 ```
-backend/
-├── app/
+backend/app/
+├── __init__.py
+├── main.py                    # FastAPI app, CORS, /health, mount v1 router
+├── core/
 │   ├── __init__.py
-│   ├── main.py                # FastAPI app, CORS, health, mount v1 router
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── config.py          # Settings (pydantic-settings)
-│   │   ├── auth.py            # get_current_user dependency
-│   │   └── supabase.py        # get_supabase(), get_user_supabase(token)
-│   ├── schemas/
-│   │   ├── __init__.py
-│   │   ├── auth.py            # LoginRequest, SignUpRequest, AuthResponse, OTPRequest
-│   │   ├── todos.py           # TodoCreate, TodoUpdate, TodoResponse
-│   │   └── storage.py         # UploadResponse, DownloadResponse
-│   └── api/v1/
-│       ├── __init__.py
-│       ├── router.py          # Aggregates auth, todos, storage
-│       ├── auth.py            # signup, login, phone_otp, verify_otp, refresh, logout, delete_account
-│       ├── todos.py           # CRUD for todos
-│       └── storage.py         # upload, download, delete
-├── pyproject.toml
-├── Dockerfile
-└── .env.example
+│   ├── config.py              # Settings: Supabase + Razorpay + Sarvam + LLM keys
+│   ├── auth.py                # get_current_user dependency (JWT validation)
+│   ├── supabase.py            # get_supabase() + get_user_supabase(token)
+│   └── razorpay.py            # Razorpay httpx client wrapper + HMAC verify
+├── services/                  # Business logic layer (no HTTP imports)
+│   └── __init__.py
+├── background/                # FastAPI BackgroundTasks functions
+│   └── __init__.py
+├── schemas/
+│   ├── __init__.py
+│   └── common.py              # CursorParams, PaginatedResponse
+└── api/v1/
+    ├── __init__.py
+    └── router.py              # Aggregates all route modules
 ```
 
-### 1.4 Backend — Auth Endpoints
+**Config shape** (`core/config.py`):
 
-| Endpoint | Method | Auth | Description |
-|----------|--------|------|-------------|
-| `/api/v1/auth/signup` | POST | — | Email/password signup |
-| `/api/v1/auth/login` | POST | — | Email/password login |
-| `/api/v1/auth/phone/send-otp` | POST | — | Send OTP to phone number |
-| `/api/v1/auth/phone/verify-otp` | POST | — | Verify OTP, return tokens |
-| `/api/v1/auth/refresh` | POST | — | Refresh access token |
-| `/api/v1/auth/logout` | POST | Bearer | Invalidate session |
-| `/api/v1/auth/account` | DELETE | Bearer | Delete user account |
-
-### 1.5 Backend — Todos Endpoints
-
-| Endpoint | Method | Auth | Description |
-|----------|--------|------|-------------|
-| `/api/v1/todos` | GET | Bearer | List user's todos |
-| `/api/v1/todos` | POST | Bearer | Create todo |
-| `/api/v1/todos/{id}` | GET | Bearer | Get single todo |
-| `/api/v1/todos/{id}` | PATCH | Bearer | Update todo (title, description, is_completed, image_path) |
-| `/api/v1/todos/{id}` | DELETE | Bearer | Delete todo |
-
-### 1.6 Backend — Storage Endpoints
-
-(Already documented — upload, download, delete)
-
----
-
-## Phase 2 — Frontend Foundation
-
-### 2.1 Project Setup
-
-**File**: `app/package.json`
-
-Key dependencies:
-- `expo` ~55, `react` 19, `react-native` 0.83
-- `expo-router`, `expo-secure-store`, `expo-image-picker`, `expo-image`
-- `@supabase/supabase-js`, `axios`, `zustand`, `@tanstack/react-query`
-- `expo-notifications`, `expo-device`
-- `react-native-reanimated`, `react-native-safe-area-context`
-
-### 2.2 Lib Layer
-
-```
-app/src/lib/
-├── api.ts              # Axios instance + auth interceptor + token refresh
-├── query-client.ts     # TanStack Query client config
-└── supabase.ts         # Supabase JS client (realtime only)
+```python
+class Settings(BaseSettings):
+    supabase_url: str
+    supabase_publishable_default_key: str
+    supabase_secret_default_key: str
+    razorpay_key_id: str = ""
+    razorpay_key_secret: str = ""
+    razorpay_webhook_secret: str = ""
+    sarvam_api_key: str = ""
+    llm_api_key: str = ""
+    llm_provider: str = "openai"
+    cors_origins: list[str] = ["http://localhost:8081"]
+    debug: bool = False
 ```
 
-### 2.3 Constants
+### F.3 Frontend Scaffold
 
 ```
-app/src/constants/
-└── theme.ts            # Colors (light/dark), spacing, typography
-```
-
-### 2.4 Components
-
-```
-app/src/components/
-├── themed-text.tsx     # Theme-aware Text
-├── themed-view.tsx     # Theme-aware View
-├── button.tsx          # Styled pressable button
-├── input.tsx           # Styled TextInput with label + error
-└── todo-card.tsx       # Todo list item with checkbox + swipe to delete
+app/src/
+├── lib/
+│   ├── api.ts                 # Axios instance + auth interceptor
+│   ├── queryClient.ts         # TanStack Query config
+│   └── supabase.ts            # Supabase JS (Realtime only)
+├── stores/
+│   ├── authStore.ts           # Phone OTP auth state
+│   ├── locationStore.ts       # GPS coords + permission
+│   └── chatStore.ts           # Active thread, unread counts
+├── constants/
+│   └── theme.ts               # Colors, spacing, typography
+└── components/
+    ├── ThemedText.tsx
+    ├── ThemedView.tsx
+    ├── Button.tsx
+    └── Input.tsx
 ```
 
 ---
 
-## Phase 3 — Auth Screens
+## MVP 1 — Discovery
 
-### 3.1 Auth Store (`stores/auth-store.ts`)
+**Hypothesis**: Can users find local merchants and view their services?
 
-```typescript
-interface AuthState {
-  user: User | null;
-  accessToken: string | null;
-  refreshToken: string | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
-  sendPhoneOtp: (phone: string) => Promise<void>;
-  verifyPhoneOtp: (phone: string, otp: string) => Promise<void>;
-  logout: () => Promise<void>;
-  deleteAccount: () => Promise<void>;
-  restoreSession: () => Promise<void>;
-}
+### 1.1 Backend: Auth (Phone OTP)
+
+**Files**: `api/v1/auth.py`, `schemas/auth.py`
+
+| Endpoint | Method | Auth |
+|----------|--------|------|
+| `/auth/otp/send` | POST | No |
+| `/auth/otp/verify` | POST | No |
+| `/auth/refresh` | POST | No |
+| `/auth/logout` | POST | Bearer |
+
+Schema: `OTPRequest { phone }`, `OTPVerifyRequest { phone, token }`, `AuthResponse { access_token, refresh_token, token_type, expires_in, user }`
+
+### 1.2 Backend: Merchants + Services + Portfolio
+
+**Files**: `api/v1/merchants.py`, `api/v1/services.py`, `api/v1/portfolio.py` + matching schemas
+
+**Merchants** (13 fields including PostGIS location):
+
+| Endpoint | Method | Notes |
+|----------|--------|-------|
+| `GET /merchants` | GET | Geo query: `lat`, `lng`, `radius`, `category`, `q` |
+| `GET /merchants/me` | GET | Own merchant profile |
+| `GET /merchants/{id}` | GET | Full detail + services + portfolio |
+| `POST /merchants` | POST | Create merchant (user becomes merchant) |
+| `PATCH /merchants/{id}` | PATCH | Partial update, owner only |
+| `DELETE /merchants/{id}` | DELETE | Owner only |
+
+> **Route order**: `/merchants/me` MUST register before `/{id}` in `router.py`
+
+**Services** (CRUD under merchant):
+- `GET/POST /merchants/{mid}/services`
+- `PATCH/DELETE /merchants/{mid}/services/{sid}`
+
+**Portfolio** (image gallery):
+- `GET/POST /merchants/{mid}/portfolio`
+- `DELETE /merchants/{mid}/portfolio/{iid}`
+- `PATCH /merchants/{mid}/portfolio/reorder`
+
+### 1.3 Backend: Feed + Search
+
+**Files**: `api/v1/feed.py`, `api/v1/search.py`, `services/geo.py`, `services/search_service.py`
+
+**Feed**:
+- `GET /feed/nearby` — PostGIS `ST_DWithin` query, interleaved merchants + posts
+- `GET /feed/following` — Posts from followed merchants, cursor-paginated
+
+**Search**:
+- `GET /search` — Combined `pg_trgm` + `tsvector`, returns merchants + services
+
+**`services/geo.py`** — PostGIS helper:
+```python
+def nearby_query(lat, lng, radius_m):
+    return f"ST_DWithin(location, ST_MakePoint({lng},{lat})::geography, {radius_m})"
 ```
 
-- Tokens stored/retrieved via `expo-secure-store`
-- `restoreSession()` on app launch
-- All auth methods call backend API via Axios
+### 1.4 Backend: Storage + Users
 
-### 3.2 Screens
+**Files**: `api/v1/storage.py`, `api/v1/users.py` + schemas
 
-```
-app/src/app/
-├── _layout.tsx                  # Root: QueryClientProvider, auth restore
-├── index.tsx                    # Redirect based on auth state
-├── (auth)/
-│   ├── _layout.tsx              # Stack navigator, no header
-│   ├── login.tsx                # Email + password form, link to signup, link to phone login
-│   ├── signup.tsx               # Email + password form
-│   └── phone-login.tsx          # Phone number input → OTP verification
-└── (app)/
-    ├── _layout.tsx              # Bottom tabs: Todos, Realtime, Settings
-    ├── todos.tsx                # Todos list + FAB to create
-    ├── todo-detail.tsx          # Create/edit todo (title, description, image)
-    ├── realtime.tsx             # Realtime playground
-    └── settings.tsx             # Profile, avatar, logout, delete account
-```
+**Storage** — multi-bucket (7 buckets, validated server-side):
+- `POST /storage/upload` — accepts `bucket` param, validates against allowlist
+- `GET /storage/download/{path}` — signed URL (private) or public URL
+- `DELETE /storage/delete/{path}`
 
-### 3.3 Login Screen
-- Email + password fields with validation
-- "Sign Up" link → signup screen
-- "Login with Phone" link → phone-login screen
-- Error display for invalid credentials
+**Users**:
+- `GET /users/me` — profile
+- `PATCH /users/me` — update profile
+- `POST /users/me/push-token` — save Expo push token
+- `GET /users/me/following` — list of followed merchants
 
-### 3.4 Signup Screen
-- Email + password + confirm password
-- Validation (email format, password length >= 6)
-- Auto-login after successful signup
+### 1.5 Frontend: Auth + Feed + Merchant + Search
 
-### 3.5 Phone Login Screen
-- Step 1: Enter phone number → "Send OTP" button
-- Step 2: Enter 6-digit OTP → "Verify" button
-- Auto-login after successful verification
+**Auth screens**: `(auth)/phone.tsx`, `(auth)/verify.tsx`
+**Feed screens**: `(app)/feed/index.tsx` (Near Me), `(app)/feed/following.tsx`
+**Merchant screens**: `(app)/merchant/[id].tsx`, `(app)/merchant/create.tsx`
+**Search**: `(app)/search/index.tsx`
+**Profile**: `(app)/profile/index.tsx`, `(app)/profile/merchant.tsx`
 
-### 3.6 Auth Service (`services/auth-service.ts`)
+### 1.6 E2E Tests
 
-```typescript
-const authService = {
-  signup: (data: { email: string; password: string }) => api.post('/auth/signup', data),
-  login: (data: { email: string; password: string }) => api.post('/auth/login', data),
-  sendPhoneOtp: (phone: string) => api.post('/auth/phone/send-otp', { phone }),
-  verifyPhoneOtp: (phone: string, otp: string) => api.post('/auth/phone/verify-otp', { phone, otp }),
-  refresh: (refreshToken: string) => api.post('/auth/refresh', { refresh_token: refreshToken }),
-  logout: () => api.post('/auth/logout'),
-  deleteAccount: () => api.delete('/auth/account'),
-};
-```
+- `login-flow.yaml` — enter phone, receive OTP, verify, land on feed
+- `browse-feed-flow.yaml` — scroll feed, tap merchant, view profile
+- `create-merchant-flow.yaml` — become merchant, add services, upload portfolio
 
 ---
 
-## Phase 4 — Todos CRUD
+## MVP 2 — Trust
 
-### 4.1 Service Layer (`services/todos-service.ts`)
+**Hypothesis**: Can users decide WHICH merchant to pick?
 
-```typescript
-const todosService = {
-  list: () => api.get<Todo[]>('/todos'),
-  get: (id: string) => api.get<Todo>(`/todos/${id}`),
-  create: (data: TodoCreate) => api.post<Todo>('/todos', data),
-  update: (id: string, data: TodoUpdate) => api.patch<Todo>(`/todos/${id}`, data),
-  delete: (id: string) => api.delete(`/todos/${id}`),
-};
-```
+### 2.1 Backend: Follows + Reviews + Likes + Comments
 
-### 4.2 TanStack Query Hooks (`hooks/use-todos.ts`)
+**Files**: `api/v1/follows.py`, `api/v1/reviews.py`, `api/v1/likes.py`, `api/v1/comments.py` + schemas
 
-```typescript
-useTodos()           // queryKey: ['todos']
-useTodo(id)          // queryKey: ['todos', id]
-useCreateTodo()      // invalidates ['todos']
-useUpdateTodo()      // invalidates ['todos']
-useDeleteTodo()      // invalidates ['todos']
-```
+**Follows**:
+- `POST /merchants/{id}/follow` — 409 if already following
+- `DELETE /merchants/{id}/follow`
+- `GET /merchants/{id}/followers`
 
-### 4.3 Todos List Screen
-- FlatList with pull-to-refresh
-- Each todo shows title, description preview, completed checkbox, timestamp
-- Tap checkbox → toggle completed (inline PATCH)
-- Tap todo → navigate to todo-detail
-- FAB (floating action button) → create new todo
-- Swipe-to-delete or long-press menu
+**Reviews** (1–5 stars + text):
+- `GET /merchants/{mid}/reviews`
+- `POST /merchants/{mid}/reviews` — self-review prevented by RLS policy
+- `PATCH /reviews/{id}` — own review only
+- `DELETE /reviews/{id}`
 
-### 4.4 Todo Detail Screen
-- Title input, multiline description input
-- Toggle "completed" status
-- Image attachment (pick from gallery via expo-image-picker)
-- Save / Delete buttons
+**Likes/Comments** (on posts):
+- `POST/DELETE /posts/{id}/like`
+- `GET/POST /posts/{id}/comments`
+- `DELETE /comments/{id}`
 
----
+All count triggers fire automatically (follower_count, avg_rating, review_count, like_count, comment_count).
 
-## Phase 5 — Image Upload
+### 2.2 Frontend
 
-### 5.1 Storage Service (`services/storage-service.ts`)
+- Follow button on merchant cards (optimistic update)
+- Star rating display on merchant cards
+- Review form (stars + text)
+- Like button + comment section on posts
 
-```typescript
-const storageService = {
-  upload: (file: FormData) => api.post('/storage/upload', file, { headers: { 'Content-Type': 'multipart/form-data' } }),
-  getUrl: (path: string) => api.get(`/storage/download/${path}`),
-  delete: (path: string) => api.delete(`/storage/delete/${path}`),
-};
-```
+### 2.3 E2E
 
-### 5.2 Avatar Upload (Settings Screen)
-- Tap avatar → expo-image-picker (camera or gallery)
-- Upload to storage → update profile `avatar_url`
-- Display with `expo-image` (cached)
-
-### 5.3 Todo Image Attachment
-- "Attach Image" button in todo-detail
-- Pick image → upload → save `image_path` on todo
-- Display image in todo detail and as thumbnail in list
+- `follow-flow.yaml` — follow merchant, verify Following feed
+- `review-flow.yaml` — write review, verify rating updated
 
 ---
 
-## Phase 6 — Realtime Playground
+## MVP 3 — Engagement
 
-### 6.1 Screen: `realtime.tsx`
+**Hypothesis**: Can merchants and users interact inside the app?
 
-A dedicated screen demonstrating Supabase Realtime features:
+### 3.1 Backend: Chat + Posts
 
-1. **Live Todos Feed** — subscribe to `postgres_changes` on `todos` table, show inserts/updates/deletes in real-time log
-2. **Presence** — show online users count using Supabase `presence` channel
-3. **Broadcast Counter** — shared counter that any user can increment, broadcast to all via `broadcast` channel
+**Files**: `api/v1/chat.py`, `api/v1/posts.py`, `background/push_tasks.py`, `services/push_service.py`
 
-```typescript
-// postgres_changes subscription
-supabase.channel('todos-changes')
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, payload => {
-    addToLog(`${payload.eventType}: ${payload.new?.title || payload.old?.id}`);
-  })
-  .subscribe();
+**Chat**:
+- `GET /chats` — thread list with last message preview
+- `POST /chats` — create thread (user ↔ merchant)
+- `GET /chats/{tid}/messages` — cursor-paginated
+- `POST /chats/{tid}/messages` — send message, triggers push task
+- `PATCH /chats/{tid}/read` — mark read (sets `read_by_user` or `read_by_merchant`)
 
-// presence
-channel.on('presence', { event: 'sync' }, () => {
-  setOnlineCount(Object.keys(channel.presenceState()).length);
-});
+> **Read status**: Two booleans per message, not one. Frontend must call the correct endpoint.
 
-// broadcast
-channel.on('broadcast', { event: 'counter' }, ({ payload }) => {
-  setCounter(payload.value);
-});
-```
+**Merchant Posts**:
+- `POST /merchants/{mid}/posts` — text + image + optional service card
+- `GET /merchants/{mid}/posts`
+- `DELETE /posts/{id}`
 
-UI: Three cards/sections showing each feature with live-updating data.
+**Background tasks**: `push_tasks.send_chat_push(recipient_id, preview)` — fires after message insert via `BackgroundTasks`.
 
----
+### 3.2 Frontend
 
-## Phase 7 — Push Notifications
+- `(app)/chat/index.tsx` — thread list, unread indicators
+- `(app)/chat/[threadId].tsx` — message thread + Supabase Realtime subscription
+- Push token registration after login (`expo-notifications`)
 
-### 7.1 Backend
+### 3.3 Realtime
 
-**New endpoint**: `POST /api/v1/notifications/register-token`
-- Saves Expo push token to `profiles.push_token` column
-- New migration adds `push_token TEXT` to profiles
-
-**Utility**: `send_push_notification(token, title, body)` using Expo Push API (`https://exp.host/--/api/v2/push/send`)
-
-### 7.2 Frontend
-
-**File**: `lib/notifications.ts`
-
-```typescript
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-
-async function registerForPushNotifications() {
-  if (!Device.isDevice) return null;  // Push doesn't work on simulators
-  const { status } = await Notifications.requestPermissionsAsync();
-  if (status !== 'granted') return null;
-  const token = await Notifications.getExpoPushTokenAsync();
-  await api.post('/notifications/register-token', { token: token.data });
-  return token.data;
-}
-```
-
-- Call `registerForPushNotifications()` after login
-- Handle incoming notifications with `Notifications.addNotificationReceivedListener`
-- Settings screen shows notification permission status
+- `chat_messages` subscription per active thread
+- `orders` subscription for status updates (used in MVP 4)
 
 ---
 
-## Phase 8 — Polish
+## MVP 4 — Transactions
 
-### 8.1 Navigation
-- Bottom tabs: **Todos** | **Realtime** | **Settings**
-- Tab icons (Expo vector icons or simple emoji fallback)
+**Hypothesis**: Will users pay and book services inside the app?
 
-### 8.2 Settings Screen
-- User email display
-- Avatar with upload
-- Push notification status
-- Logout button (with confirmation)
-- Delete Account button (with confirmation + text input "DELETE")
+### 4.1 Backend: Orders + Payments
 
-### 8.3 Error Handling
-- Toast/alert for API errors
-- Form validation messages inline
-- Loading states on all async actions
+**Files**: `api/v1/orders.py`, `api/v1/payments.py`, `services/payment_service.py`
+
+**Orders**:
+- `POST /orders` — creates order + Razorpay payment order. `merchant_id` derived server-side from `service_id` (NEVER from request body)
+- `GET /orders` — user's or merchant's orders
+- `GET /orders/{id}` — detail + status history
+- `PATCH /orders/{id}/status` — state machine enforced (see transitions below)
+- `POST /orders/{id}/reorder` — quick re-order
+
+**State machine** (`pending_payment → confirmed → in_progress → ready → delivered`, with cancellation):
+```
+pending_payment → confirmed (webhook only)
+confirmed → in_progress | cancelled (merchant)
+in_progress → ready (merchant)
+ready → delivered (merchant)
+pending_payment | confirmed → cancelled (user)
+```
+
+**Payments**:
+- `POST /payments/webhook` — **NO JWT auth**, HMAC verified. Uses service-role client. Checks replay window (5 min), event ID uniqueness.
+- `POST /payments/verify` — client-side verification after Razorpay SDK
+- `POST /payments/{id}/refund` — process refund
+
+**`services/payment_service.py`**:
+- `create_order_with_payment(admin, supabase, body, user_id)` — lookup merchant from service, create Razorpay order, insert DB row
+- `verify_webhook(body, signature, secret)` — HMAC check + replay window + idempotency
+- `process_refund(payment_id, amount)` — Razorpay refund API
+
+### 4.2 Frontend
+
+- `(app)/orders/index.tsx` — order list
+- `(app)/orders/[id].tsx` — status tracker with Realtime updates
+- Razorpay SDK integration (`react-native-razorpay`)
+
+### 4.3 E2E
+
+- `booking-flow.yaml` — select service, place order, complete payment (Razorpay test mode)
+
+---
+
+## MVP 5 — Social
+
+**Hypothesis**: Can the community drive growth organically?
+
+### 5.1 Backend: Recommendations + Referrals + Leaderboard
+
+**Files**: `api/v1/recommendations.py`, `api/v1/referrals.py`, `api/v1/leaderboard.py`, `services/recommendation_service.py`
+
+**Recommendations**:
+- `POST /merchants/{id}/recommendations` — create card
+- `GET /recommendations/feed`
+- `GET /recommendations/{id}/share` — returns deep-link URL
+
+**Referrals**:
+- `POST /referrals` — generate referral code
+- `GET /referrals/stats` — conversion stats
+
+**Leaderboard**:
+- `GET /leaderboard` — top recommenders by neighborhood this month
+
+**Badge logic** (`recommendation_service.py`): When `recommendation_count` crosses threshold → `promote_badge` trigger sets `profiles.badge`.
+
+### 5.2 Frontend
+
+- `(app)/recommendations/index.tsx` — feed + create form
+- Shareable recommendation cards (via `expo-sharing`)
+- Leaderboard display
+
+---
+
+## MVP 6 — Intelligence
+
+**Hypothesis**: Can the app serve non-tech-savvy users and seasonal demand?
+
+### 6.1 Backend: Voice + Festivals + Need Posts + Insights
+
+**Files**: `api/v1/voice.py`, `api/v1/festivals.py`, `api/v1/need_posts.py`, `api/v1/insights.py`, `services/voice_service.py`, `background/cleanup_tasks.py`
+
+**Voice Search**:
+- `POST /voice/search` — multipart audio upload
+- Pipeline: audio → Sarvam STT → LLM intent extraction → PostGIS + FTS query → results + TTS URL
+- Background task: delete voice upload after processing
+
+**Festivals**:
+- `GET /festivals` — upcoming festivals
+- `POST /festivals/plans` — create checklist
+- `PUT /festivals/plans/{id}` — update items
+
+**Need Posts** ("I Need..."):
+- `POST /need-posts` — broadcast to nearby merchants
+- `GET /need-posts/feed` — merchants view nearby needs
+- `POST /need-posts/{id}/close`
+- Background job: auto-close expired posts (`expires_at < now()`)
+
+**Merchant Insights**:
+- `GET /merchants/me/insights` — aggregated analytics
+- Computed by scheduled background job (pg_cron)
+
+### 6.2 Frontend
+
+- `(app)/voice/index.tsx` — record + animated waveform + results
+- `(app)/festival/index.tsx` — festival planner + checklists
+
+---
+
+## Background Jobs Summary
+
+| Job | Type | Frequency | MVP |
+|-----|------|-----------|-----|
+| Push dispatch (chat) | FastAPI BackgroundTasks | Per message | 3 |
+| Push dispatch (order) | FastAPI BackgroundTasks | Per status change | 4 |
+| Push dispatch (post) | FastAPI BackgroundTasks | Per post | 3 |
+| Voice upload cleanup | FastAPI BackgroundTasks | Per voice search | 6 |
+| Compute response_time | pg_cron | Hourly | 1 |
+| Compute insights | pg_cron | Daily | 6 |
+| Expire need_posts | pg_cron | Every 15 min | 6 |
+| Compute leaderboard | pg_cron | Daily | 5 |
+
+---
+
+## Implementation Order
+
+```
+1.  Foundation: Supabase migrations (001–009)
+2.  Foundation: Backend core (config, auth, supabase, razorpay client)
+3.  Foundation: Frontend scaffold (lib, stores, components)
+4.  MVP 1: auth.py + schemas + auth screens
+5.  MVP 1: merchants.py + services.py + portfolio.py + geo service
+6.  MVP 1: feed.py + search.py + search service
+7.  MVP 1: storage.py (multi-bucket) + users.py
+8.  MVP 1: Frontend feed, merchant, search, profile screens
+9.  MVP 1: E2E tests (login, browse, merchant)
+10. MVP 2: follows.py + reviews.py + likes.py + comments.py
+11. MVP 2: Frontend follow/review/like/comment UI
+12. MVP 3: chat.py + posts.py + push_tasks.py + push_service.py
+13. MVP 3: Frontend chat screens + Realtime subscription
+14. MVP 4: orders.py + payments.py + payment_service.py
+15. MVP 4: Frontend order screens + Razorpay SDK
+16. MVP 5: recommendations.py + referrals.py + leaderboard.py
+17. MVP 5: Frontend recommendation cards + share
+18. MVP 6: voice.py + voice_service.py + cleanup_tasks.py
+19. MVP 6: festivals.py + need_posts.py + insights.py
+20. MVP 6: Frontend voice, festival, need-post screens
+```
 
 ---
 
@@ -436,25 +437,20 @@ async function registerForPushNotifications() {
 
 | Layer | Files | Description |
 |-------|-------|-------------|
-| Supabase | 2 | Migration + config |
-| Backend | 12 | Core, schemas, routes, main |
-| Frontend | ~20 | Screens, components, hooks, stores, services, lib, constants |
-| Config | 4 | package.json, tsconfig, app.json, .env.example |
-| **Total** | **~38** | Minimal but complete |
-
----
-
-## Implementation Order
-
-1. **Supabase** — migrations + config
-2. **Backend core** — config, auth dep, supabase factory
-3. **Backend auth** — signup, login, phone OTP, logout, delete
-4. **Backend todos** — CRUD endpoints
-5. **Backend storage** — upload/download/delete
-6. **Frontend foundation** — package.json, lib layer, theme, components
-7. **Auth store + screens** — login, signup, phone login
-8. **Todos screens** — list + detail with CRUD
-9. **Image upload** — avatar + todo attachments
-10. **Realtime playground** — live demo screen
-11. **Push notifications** — registration + handling
-12. **Settings screen** — profile, logout, delete account
+| Supabase | 10 | 9 migrations + config.toml |
+| Backend routes | 22 | api/v1/*.py |
+| Backend schemas | 22 | schemas/*.py (1 per route + common.py) |
+| Backend services | 6 | services/*.py |
+| Backend background | 2 | background/*.py |
+| Backend core | 4 | config, auth, supabase, razorpay |
+| Backend tests | ~30 | Unit + integration per route |
+| Frontend screens | ~20 | Expo Router pages |
+| Frontend services | ~13 | API service functions |
+| Frontend stores | 3 | auth, location, chat |
+| Frontend components | ~15 | Shared UI |
+| Frontend hooks | ~10 | TanStack Query wrappers |
+| Frontend tests | ~20 | Jest + MSW |
+| E2E | ~5 | Maestro flows |
+| Config | 6 | package.json, pyproject.toml, Dockerfile, docker-compose, app.json, eas.json |
+| Docs | 15 | Architecture + guides |
+| **Total** | **~200** | Full-stack marketplace |

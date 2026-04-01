@@ -120,22 +120,22 @@ class TestPhoneOTP:
         mock_sb = MagicMock()
 
         with patch("app.api.v1.auth.get_supabase", return_value=mock_sb):
-            resp = client.post("/api/v1/auth/phone/send-otp", json={"phone": "+1234567890"})
+            resp = client.post("/api/v1/auth/otp/send", json={"phone": "+1234567890"})
 
         assert resp.status_code == 200
-        assert resp.json()["message"] == "OTP sent successfully"
+        assert resp.json()["message"] == "OTP sent"
 
     def test_send_otp_exception(self, client):
         mock_sb = MagicMock()
         mock_sb.auth.sign_in_with_otp.side_effect = Exception("send error")
 
         with patch("app.api.v1.auth.get_supabase", return_value=mock_sb):
-            resp = client.post("/api/v1/auth/phone/send-otp", json={"phone": "+1234567890"})
+            resp = client.post("/api/v1/auth/otp/send", json={"phone": "+1234567890"})
 
         assert resp.status_code == 400
 
     def test_send_otp_missing_phone(self, client):
-        resp = client.post("/api/v1/auth/phone/send-otp", json={})
+        resp = client.post("/api/v1/auth/otp/send", json={})
         assert resp.status_code == 422
 
     def test_verify_otp_success(self, client):
@@ -144,8 +144,8 @@ class TestPhoneOTP:
 
         with patch("app.api.v1.auth.get_supabase", return_value=mock_sb):
             resp = client.post(
-                "/api/v1/auth/phone/verify-otp",
-                json={"phone": "+1234567890", "otp": "123456"},
+                "/api/v1/auth/otp/verify",
+                json={"phone": "+1234567890", "token": "123456"},
             )
 
         assert resp.status_code == 200
@@ -159,8 +159,8 @@ class TestPhoneOTP:
 
         with patch("app.api.v1.auth.get_supabase", return_value=mock_sb):
             resp = client.post(
-                "/api/v1/auth/phone/verify-otp",
-                json={"phone": "+1234567890", "otp": "000000"},
+                "/api/v1/auth/otp/verify",
+                json={"phone": "+1234567890", "token": "000000"},
             )
 
         assert resp.status_code == 401
@@ -171,8 +171,8 @@ class TestPhoneOTP:
 
         with patch("app.api.v1.auth.get_supabase", return_value=mock_sb):
             resp = client.post(
-                "/api/v1/auth/phone/verify-otp",
-                json={"phone": "+1234567890", "otp": "000000"},
+                "/api/v1/auth/otp/verify",
+                json={"phone": "+1234567890", "token": "000000"},
             )
 
         assert resp.status_code == 401
@@ -183,8 +183,8 @@ class TestPhoneOTP:
 
         with patch("app.api.v1.auth.get_supabase", return_value=mock_sb):
             resp = client.post(
-                "/api/v1/auth/phone/verify-otp",
-                json={"phone": "+1234567890", "otp": "123456"},
+                "/api/v1/auth/otp/verify",
+                json={"phone": "+1234567890", "token": "123456"},
             )
 
         assert resp.status_code == 200

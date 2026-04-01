@@ -1,0 +1,116 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.raja.localstore
+  TEST_PHONE: "+919182666194"
+  TEST_PHONE_OTP: "123456"
+---
+# Logout flow — self-contained: logs in if needed, then logs out.
+
+- launchApp:
+    appId: ${APP_ID}
+    clearState: true
+
+- waitForAnimationToEnd
+
+# --- Login first ---
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 30000
+
+- tapOn:
+    id: "phone-input"
+- inputText: ${TEST_PHONE}
+
+- tapOn:
+    id: "send-code-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter the 6-digit code sent to your phone"
+    timeout: 15000
+
+- tapOn:
+    id: "otp-input"
+- inputText: ${TEST_PHONE_OTP}
+
+- tapOn:
+    id: "verify-button"
+
+- waitForAnimationToEnd
+
+# Dismiss location/system dialogs
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# Wait for feed to load (proves we're logged in)
+- extendedWaitUntil:
+    visible:
+      id: "merchant-card"
+    timeout: 25000
+
+# Dismiss any late dialogs
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+# --- Navigate to Profile tab ---
+- tapOn:
+    id: "tab-profile"
+- waitForAnimationToEnd
+
+# Wait for Sign Out button to be visible
+- extendedWaitUntil:
+    visible:
+      id: "logout-button"
+    timeout: 10000
+
+# --- Sign Out ---
+- tapOn:
+    id: "logout-button"
+
+# Handle confirmation alert
+- extendedWaitUntil:
+    visible:
+      text: "Logout"
+    timeout: 5000
+
+- tapOn: "Logout"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 20000
+
+- assertVisible: "Phone Login"
+- assertVisible: "Enter your phone number to receive a code"

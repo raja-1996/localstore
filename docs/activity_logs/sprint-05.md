@@ -1,0 +1,26 @@
+## [2026-03-28] — Sprint 5: Frontend — Search + Profile + Merchant Creation
+
+- Created `app/src/constants/categories.ts`: single source of truth for `CATEGORIES` array and `CATEGORY_LABELS` map (imported by all screens)
+- Created `app/src/types/search.ts`: `SearchMerchantItem`, `SearchServiceItem`, `ServiceMerchantBrief`, `SearchResponse`
+- Created `app/src/types/user.ts`: `UserProfile`, `UserUpdate`
+- Extended `app/src/types/merchant.ts`: added `MerchantCreate`, `MerchantUpdate` (with `avatar_url`), `ServiceCreate`, `ServiceUpdate`
+- Created `app/src/services/search-service.ts`: `searchService.searchMerchants()` → `GET /search`
+- Created `app/src/services/user-service.ts`: `userService.getMe()` / `updateMe()` → `GET/PATCH /users/me`
+- Extended `app/src/services/merchant-service.ts`: +9 methods (getOwnMerchant, createMerchant, updateMerchant, createService, updateService, deleteService, addPortfolioImage, deletePortfolioImage, reorderPortfolio); `addPortfolioImage` uses JSON `{image_url}` not FormData
+- Created `app/src/hooks/use-search.ts`: 300ms debounce via `useRef`/`setTimeout`, `staleTime: 0`
+- Created `app/src/hooks/use-user.ts`: `useUser()` + `useUpdateUser()`
+- Extended `app/src/hooks/use-merchant.ts`: +9 mutation hooks; `useCreateMerchant` invalidates `['user','me']` + `['merchant','me']` + `['feed']`
+- Created `app/src/app/(app)/search/index.tsx`: category grid + TextInput + FlashList of MerchantCards; `adaptSearchItem()` converts `SearchMerchantItem` to `NearbyFeedItem`; empty state (testID: `empty-state`)
+- Created `app/src/app/(app)/profile/index.tsx`: avatar upload (expo-image-picker → user-avatars bucket), inline name edit, client-side phone masking (`maskPhone()`), "Become a Merchant" CTA, "Manage My Business" link; testIDs per E2E spec
+- Created `app/src/app/(app)/profile/merchant.tsx`: 3-section merchant owner screen (Edit Profile / Services / Portfolio); diff-only PATCH; `useWindowDimensions` inside component (not module-level); drag-to-reorder skipped (up/down buttons only)
+- Created `app/src/app/(app)/merchant/create.tsx`: 4-step wizard with full local state; POSTs only on final submit (no orphaned records); partial-success handling if service/portfolio uploads fail after merchant is created; `stateRef` pattern for stable `handleSubmit` useCallback
+- Created `app/src/app/(app)/chat-placeholder.tsx`: minimal placeholder required by expo-router for the chat tab
+- Modified `app/src/app/(app)/_layout.tsx`: 4-tab layout (Feed/Search/Chat/Profile); chat tab intercepted via `tabPress` → `e.preventDefault()` + Alert; merchant/create + profile/merchant + settings hidden via `href: null`
+- Modified `app/app.json`: added `ios.associatedDomains` + `android.intentFilters` for universal links; `localstore://merchant/{id}` routes automatically via expo-router file structure
+- Created 5 frontend unit tests (32 new tests): search-service, user-service, search-screen, profile-screen, merchant-create-screen
+- Created 2 backend integration tests (9 new tests): test_merchant_creation_flow.py (full pipeline + is_merchant flag + dupe 409 + max-10 portfolio), test_users_me_extended.py (avatar_url persists, partial PATCH, auth required)
+- Frontend total: 268 unit tests pass (11 skip: TEST_PHONE_OTP unset); Backend: 150 unit tests pass; 9 new integration tests pass against real Supabase
+- Gotcha: `addPortfolioImage` must POST JSON `{image_url: string}` to backend — the backend expects a URL after upload, not a file. Upload to storage first, then POST the URL.
+- Gotcha: `avg_rating` from Supabase deserializes as `string` (Decimal column) — coerce with `Number()` at the service boundary; never widen the TypeScript type to `number | string`
+- Gotcha: `useCallback` with entire form state as dep recreates on every keystroke — use `useRef` pointing to latest state, keep only stable values (`coords`, `queryClient`) in the callback deps array
+- Gotcha: Tab navigation via `Tabs.Screen href: null` hides the route from the tab bar but the screen is still accessible via `router.push('/(app)/merchant/create')` — this is the correct pattern for wizard/modal screens

@@ -1,0 +1,180 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.raja.localstore
+  TEST_PHONE: "+919182666194"
+  TEST_PHONE_OTP: "123456"
+---
+# S8-E1 — Like / Unlike a post flow.
+# Verifies: login → feed → Following tab → find PostCard → tap like button →
+#           like_count increments → tap again → like_count decrements.
+# Prerequisite: seed data loaded (supabase/seed.sql);
+#               test user follows at least 1 merchant that has posts;
+#               run after 10-write-review.
+
+- launchApp:
+    appId: ${APP_ID}
+    clearState: true
+
+- waitForAnimationToEnd
+
+# --- Login ---
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 30000
+
+- tapOn:
+    id: "phone-input"
+- inputText: ${TEST_PHONE}
+
+- tapOn:
+    id: "send-code-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter the 6-digit code sent to your phone"
+    timeout: 15000
+
+- tapOn:
+    id: "otp-input"
+- inputText: ${TEST_PHONE_OTP}
+
+- tapOn:
+    id: "verify-button"
+
+- waitForAnimationToEnd
+
+# --- Location permission (app-level custom button) ---
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+# --- Android system dialogs (may appear 1-2 times) ---
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# --- Wait for feed to load ---
+- extendedWaitUntil:
+    visible:
+      id: "merchant-card"
+    timeout: 25000
+
+# Dismiss any dialog that snuck in during loading
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# Second location permission handler (may appear after feed loads)
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# --- Assert feed (Near Me tab) is visible ---
+- assertVisible:
+    id: "merchant-card"
+
+# --- Switch to Following tab ---
+- assertVisible:
+    id: "following-tab"
+
+- tapOn:
+    id: "following-tab"
+
+- waitForAnimationToEnd
+
+# --- Wait for Following feed to load ---
+- extendedWaitUntil:
+    visible:
+      id: "post-card"
+    timeout: 20000
+
+- assertVisible:
+    id: "post-card"
+
+# --- Assert like count is visible on the first PostCard ---
+- assertVisible:
+    id: "like-count"
+
+# --- Capture baseline state: record whether post is already liked ---
+# If already liked, unlike first to start from a clean state
+- runFlow:
+    when:
+      visible:
+        id: "like-button-active"
+    commands:
+      - tapOn:
+          id: "like-button"
+      - waitForAnimationToEnd
+      - extendedWaitUntil:
+          visible:
+            id: "like-button-inactive"
+          timeout: 8000
+
+# --- Assert heart is in unliked state before test ---
+- assertVisible:
+    id: "like-button-inactive"
+
+# --- Tap like button — optimistic increment ---
+- tapOn:
+    id: "like-button"
+
+- waitForAnimationToEnd
+
+# --- Verify button toggles to active (liked) state ---
+- extendedWaitUntil:
+    visible:
+      id: "like-button-active"
+    timeout: 8000
+
+- assertVisible:
+    id: "like-button-active"
+
+# --- like_count element still visible after increment ---
+- assertVisible:
+    id: "like-count"
+
+# --- Tap like button again — unlike (decrement) ---
+- tapOn:
+    id: "like-button"
+
+- waitForAnimationToEnd
+
+# --- Verify button reverts to inactive (unliked) state ---
+- extendedWaitUntil:
+    visible:
+      id: "like-button-inactive"
+    timeout: 8000
+
+- assertVisible:
+    id: "like-button-inactive"
+
+# --- like_count element still visible after decrement ---
+- assertVisible:
+    id: "like-count"

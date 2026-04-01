@@ -151,6 +151,37 @@ def test_user(integration_client):
         print(f"[integration] Warning: could not delete test user: {e}")
 
 
+# ---------------------------------------------------------------------------
+# Shared merchant helper functions (used by test_merchants_integration and
+# test_rls_integration — centralised here to avoid sibling-file imports)
+# ---------------------------------------------------------------------------
+
+def make_merchant_payload(**overrides) -> dict:
+    """Return a valid merchant creation payload with a random name."""
+    import uuid
+    base = {
+        "name": f"Test Merchant {uuid.uuid4().hex[:6]}",
+        "category": "Beauty",
+        "lat": 12.9716,
+        "lng": 77.5946,
+        "description": "Integration test merchant",
+        "service_radius_meters": 5000,
+    }
+    base.update(overrides)
+    return base
+
+
+def delete_merchant(merchant_id: str) -> None:
+    """Hard-delete a merchant row via a fresh service-role client (bypasses RLS)."""
+    from supabase import create_client
+    from app.core.config import settings
+    try:
+        client = create_client(settings.supabase_url, settings.supabase_secret_default_key)
+        client.table("merchants").delete().eq("id", merchant_id).execute()
+    except Exception as e:
+        print(f"Warning: delete_merchant failed for {merchant_id}: {e}")
+
+
 @pytest.fixture(scope="session")
 def test_user_b(integration_client):
     """

@@ -296,22 +296,22 @@ describe('POST /auth/logout', () => {
 
 const TEST_PHONE = process.env.TEST_PHONE || '+919182666194';
 
-describe('POST /auth/phone/send-otp', () => {
+describe('POST /auth/otp/send', () => {
   maybeIt('success — returns 200 with message', async () => {
-    const res = await client.post('/auth/phone/send-otp', { phone: TEST_PHONE });
+    const res = await client.post('/auth/otp/send', { phone: TEST_PHONE });
 
     expect(res.status).toBe(200);
-    expect(res.data.message).toBe('OTP sent successfully');
+    expect(res.data.message).toBe('OTP sent');
   });
 
   maybeIt('422 — missing phone body is rejected', async () => {
-    const res = await client.post('/auth/phone/send-otp', {});
+    const res = await client.post('/auth/otp/send', {});
 
     expect(res.status).toBe(422);
   });
 });
 
-describe('POST /auth/phone/verify-otp', () => {
+describe('POST /auth/otp/verify', () => {
   maybeIt('success — valid OTP returns tokens and phone user', async () => {
     const otp = process.env.TEST_PHONE_OTP;
     if (!otp) {
@@ -319,7 +319,7 @@ describe('POST /auth/phone/verify-otp', () => {
       return;
     }
 
-    const res = await client.post('/auth/phone/verify-otp', { phone: TEST_PHONE, otp });
+    const res = await client.post('/auth/otp/verify', { phone: TEST_PHONE, token: otp });
 
     expect(res.status).toBe(200);
     expect(typeof res.data.access_token).toBe('string');
@@ -330,16 +330,16 @@ describe('POST /auth/phone/verify-otp', () => {
   });
 
   maybeIt('401/400/422 — invalid OTP is rejected', async () => {
-    const res = await client.post('/auth/phone/verify-otp', {
+    const res = await client.post('/auth/otp/verify', {
       phone: TEST_PHONE,
-      otp: '000000',
+      token: '000000',
     });
 
     expect([401, 400, 422]).toContain(res.status);
   });
 
   maybeIt('422 — missing phone is rejected', async () => {
-    const res = await client.post('/auth/phone/verify-otp', { otp: '123456' });
+    const res = await client.post('/auth/otp/verify', { token: '123456' });
 
     expect(res.status).toBe(422);
   });

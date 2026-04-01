@@ -1,0 +1,233 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.raja.localstore
+  TEST_PHONE: "+919182666192"
+  TEST_PHONE_OTP: "123457"
+  TEST_MERCHANT_NAME: "E2E Test Salon"
+  TEST_SERVICE_NAME: "Haircut"
+  TEST_SERVICE_PRICE: "300"
+---
+# Merchant creation E2E test.
+# Verifies: "Become a Merchant" CTA → 4-step form → success → merchant appears in feed.
+# If the test user is already a merchant (previous run), the creation path is skipped and
+# the merchant owner screen is verified instead.
+# To re-run creation: delete the test merchant from Supabase console first.
+
+- launchApp:
+    appId: ${APP_ID}
+    clearState: true
+
+- waitForAnimationToEnd
+
+# Sign out if already logged in (clearState doesn't clear expo-secure-store on Android)
+- runFlow:
+    when:
+      visible: "Sign Out"
+    commands:
+      - tapOn: "Sign Out"
+      - extendedWaitUntil:
+          visible:
+            text: "Logout"
+          timeout: 5000
+      - tapOn: "Logout"
+      - waitForAnimationToEnd
+
+# --- Login ---
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 30000
+
+- tapOn:
+    id: "phone-input"
+- inputText: ${TEST_PHONE}
+
+- tapOn:
+    id: "send-code-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter the 6-digit code sent to your phone"
+    timeout: 15000
+
+- tapOn:
+    id: "otp-input"
+- inputText: ${TEST_PHONE_OTP}
+
+- tapOn:
+    id: "verify-button"
+
+- waitForAnimationToEnd
+
+# --- Grant location if prompted ---
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+# --- Navigate to profile tab ---
+- extendedWaitUntil:
+    visible:
+      id: "tab-profile"
+    timeout: 20000
+
+- tapOn:
+    id: "tab-profile"
+
+# Wait for profile to load — logout-button always present regardless of merchant status
+- extendedWaitUntil:
+    visible:
+      id: "logout-button"
+    timeout: 15000
+
+# === Path A: user already a merchant — verify merchant owner screen ===
+- runFlow:
+    when:
+      visible:
+        id: "manage-merchant-cta"
+    commands:
+      - tapOn:
+          id: "manage-merchant-cta"
+      - extendedWaitUntil:
+          visible:
+            id: "merchant-edit-profile"
+          timeout: 10000
+      - assertVisible:
+          id: "merchant-edit-profile"
+
+# === Path B: user not yet a merchant — full creation flow ===
+- runFlow:
+    when:
+      visible:
+        id: "become-merchant-cta"
+    commands:
+      - tapOn:
+          id: "become-merchant-cta"
+
+      - waitForAnimationToEnd
+
+      # --- Step 1: Business info ---
+      - extendedWaitUntil:
+          visible:
+            id: "merchant-create-step-1"
+          timeout: 10000
+
+      # Wait for location coords to populate (Next button disabled until coords arrive)
+      - extendedWaitUntil:
+          visible:
+            text: "📍 Using current location"
+          timeout: 15000
+
+      - tapOn:
+          id: "merchant-name-input"
+      - inputText: ${TEST_MERCHANT_NAME}
+
+      - scroll
+      - waitForAnimationToEnd
+
+      - tapOn:
+          id: "merchant-category-selector"
+      - waitForAnimationToEnd
+
+      # Retry tap if modal didn't open (Maestro tap precision issue on Android)
+      - runFlow:
+          when:
+            visible: "Select a category…"
+          commands:
+            - tapOn:
+                id: "merchant-category-selector"
+            - waitForAnimationToEnd
+
+      # Wait for category modal slide-in animation
+      - extendedWaitUntil:
+          visible:
+            text: "Select Category"
+          timeout: 10000
+
+      - tapOn:
+          id: "category-option-0"
+
+      - tapOn:
+          id: "merchant-description-input"
+      - inputText: "E2E test merchant - safe to delete"
+
+      - tapOn: "📍 Using current location"
+      - waitForAnimationToEnd
+
+      - tapOn:
+          id: "step-next-button"
+
+      - waitForAnimationToEnd
+
+      # --- Step 2: Avatar + contact ---
+      - extendedWaitUntil:
+          visible:
+            id: "merchant-create-step-2"
+          timeout: 10000
+
+      # Skip avatar upload — native OS image picker cannot be automated by Maestro
+      - tapOn:
+          id: "step-next-button"
+
+      - waitForAnimationToEnd
+
+      # --- Step 3: First service ---
+      - extendedWaitUntil:
+          visible:
+            id: "merchant-create-step-3"
+          timeout: 10000
+
+      - tapOn:
+          id: "service-name-input"
+      - inputText: ${TEST_SERVICE_NAME}
+
+      - tapOn:
+          id: "service-price-input"
+      - inputText: ${TEST_SERVICE_PRICE}
+
+      - tapOn: "Add a Service"
+      - waitForAnimationToEnd
+
+      - tapOn:
+          id: "step-next-button"
+
+      - waitForAnimationToEnd
+
+      # --- Step 4: Portfolio (skip — optional) ---
+      - extendedWaitUntil:
+          visible:
+            id: "merchant-create-step-4"
+          timeout: 10000
+
+      - tapOn:
+          id: "step-skip-button"
+
+      - waitForAnimationToEnd
+
+      # --- Success state ---
+      - extendedWaitUntil:
+          visible:
+            id: "merchant-create-success"
+          timeout: 30000
+
+      - assertVisible:
+          id: "merchant-create-success"
+
+      # --- Verify merchant appears in feed ---
+      - tapOn:
+          id: "go-to-feed-button"
+
+      - waitForAnimationToEnd
+
+      # Explicitly tap feed tab to force a refetch after merchant creation
+      - tapOn:
+          id: "tab-feed"
+
+      - waitForAnimationToEnd
+
+      - extendedWaitUntil:
+          visible:
+            text: ${TEST_MERCHANT_NAME}
+          timeout: 30000

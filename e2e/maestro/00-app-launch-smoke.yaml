@@ -1,0 +1,23 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.raja.localstore
+---
+# Foundation smoke test.
+# Verifies: cold launch → phone login screen reachable (no crashes, no blank screen).
+
+- launchApp:
+    appId: ${APP_ID}
+    clearState: true
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 30000
+
+- assertVisible: "Phone Login"
+- assertVisible: "Enter your phone number to receive a code"
+
+- assertVisible:
+    id: "phone-input"

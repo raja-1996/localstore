@@ -1,0 +1,111 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.raja.localstore
+  TEST_PHONE: "+919182666194"
+  TEST_PHONE_OTP: "123456"
+---
+# Merchant detail E2E test.
+# Verifies: tap first merchant card → detail screen shows all sections → back returns to feed.
+# Prerequisite: seed data loaded; run after 04-feed-nearby setup (or re-login inline below).
+
+- launchApp:
+    appId: ${APP_ID}
+    clearState: true
+
+- waitForAnimationToEnd
+
+# --- Login ---
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 30000
+
+- tapOn:
+    id: "phone-input"
+- inputText: ${TEST_PHONE}
+
+- tapOn:
+    id: "send-code-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter the 6-digit code sent to your phone"
+    timeout: 15000
+
+- tapOn:
+    id: "otp-input"
+- inputText: ${TEST_PHONE_OTP}
+
+- tapOn:
+    id: "verify-button"
+
+- waitForAnimationToEnd
+
+# --- Location permission (app-level custom button) ---
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+# --- Android system dialogs (may appear 1-2 times) ---
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# --- Wait for feed to load ---
+- extendedWaitUntil:
+    visible:
+      id: "merchant-card"
+    timeout: 25000
+
+# Dismiss any dialog that snuck in during loading
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# --- Tap first merchant card ---
+- tapOn:
+    id: "merchant-card"
+
+- waitForAnimationToEnd
+
+# --- Merchant detail screen ---
+- extendedWaitUntil:
+    visible:
+      id: "merchant-detail-screen"
+    timeout: 15000
+
+- assertVisible:
+    id: "merchant-name"
+
+- assertVisible:
+    id: "services-section"
+
+- assertVisible:
+    id: "portfolio-section"
+
+- assertVisible:
+    id: "contact-section"
+
+# --- Back to feed ---
+- tapOn:
+    id: "back-button"
+
+- waitForAnimationToEnd
+
+- assertVisible: "Near Me"

@@ -9,3 +9,7 @@ Design-system tokens: colors, spacing, font sizes, and border radii.
     - `FontSize { sm:12, md:14, lg:16, xl:20, xxl:28, title:34 }`
     - `BorderRadius { sm:4, md:8, lg:12, xl:16, full:9999 }`
   - gotcha: `primary` (#0A7EA4), `danger` (#E5484D), and `success` (#30A46C) are IDENTICAL in both light and dark palettes
+
+- `categories.ts` — Merchant category enums and display names
+  - exports: `CATEGORIES`, `CATEGORY_LABELS`
+  - data: food, beauty, tailoring, services categories with UI labels and icons

@@ -7,7 +7,7 @@ expo-router file-based routing root — root layout, auth redirect guard, and ro
   - side-effects: calls `useAuthStore.restoreSession()` on mount (reads tokens from SecureStore, validates with backend)
   - gotcha: `restoreSession` is async; `index.tsx` shows a spinner until it resolves — avoid adding auth-gated screens before this completes
 
-- `index.tsx` — auth redirect guard; shows spinner while session loads, then redirects to `/(app)/todos` or `/(auth)/login`
+- `index.tsx` — auth redirect guard; shows spinner while session loads, then redirects to `/(app)/feed` or `/(auth)/phone-login`
   - exports: default `Index`
   - deps: `../stores/auth-store`, `expo-router`
   - gotcha: this is the actual entry point rendered first by expo-router; it never renders persistent UI — it only redirects based on `isAuthenticated`

@@ -3,9 +3,19 @@ from supabase import create_client, Client, ClientOptions
 from app.core.config import settings
 
 
+def _make_service_client() -> Client:
+    """Create a fresh service-role client. Use for auth operations that mutate client state."""
+    return create_client(settings.supabase_url, settings.supabase_secret_default_key)
+
+
 @lru_cache()
 def get_supabase() -> Client:
-    """Service role client for admin operations (cached singleton)."""
+    """Service role client for admin operations (cached singleton).
+
+    WARNING: Do NOT use this client for auth sign_in/sign_up/refresh operations.
+    Those operations mutate the client's internal session state, which breaks
+    subsequent PostgREST queries. Use _make_service_client() for auth operations.
+    """
     return create_client(settings.supabase_url, settings.supabase_secret_default_key)
 
 

@@ -1,6 +1,11 @@
 # app
 Expo (React Native) frontend — project root containing config files and the src/ source tree.
 
+- gotcha: **Never use Expo Go** — always use development builds. Expo Go (SDK 53+) dropped native modules like `expo-notifications`
+- Dev workflow: `npx expo run:android` (first time), then `npx expo start --dev-client` (daily). Always `adb reverse tcp:8081 tcp:8081` after emulator boot
+- gotcha: never delete `package-lock.json` — use `npm ci` for clean installs. Pin `react-test-renderer` to same version as `react`
+- gotcha: if module resolution errors after install, reset watchman cache and start Metro with `--clear`
+
 - `app.json` — Expo app configuration: scheme, plugins (expo-router, expo-secure-store, expo-image-picker, expo-image), typedRoutes experiment, bundle identifiers for iOS/Android
   - gotcha: `newArchEnabled: true` — React Native new architecture is ON; some third-party libs may be incompatible
 

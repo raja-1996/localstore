@@ -1,0 +1,97 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.raja.localstore
+  TEST_PHONE: "+919182666194"
+  TEST_PHONE_OTP: "123456"
+---
+# Feed nearby E2E test.
+# Verifies: login → location permission → feed loads merchant cards → category filter works.
+# Prerequisite: seed data (supabase/seed.sql) loaded on cloud Supabase.
+
+- launchApp:
+    appId: ${APP_ID}
+    clearState: true
+
+- waitForAnimationToEnd
+
+# --- Login ---
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 30000
+
+- tapOn:
+    id: "phone-input"
+- inputText: ${TEST_PHONE}
+
+- tapOn:
+    id: "send-code-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter the 6-digit code sent to your phone"
+    timeout: 15000
+
+- tapOn:
+    id: "otp-input"
+- inputText: ${TEST_PHONE_OTP}
+
+- tapOn:
+    id: "verify-button"
+
+- waitForAnimationToEnd
+
+# --- Location permission (app-level custom button) ---
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+# --- Android system dialogs (may appear 1-2 times) ---
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# --- Feed screen: wait for category bar (more reliable than text behind dialogs) ---
+- extendedWaitUntil:
+    visible:
+      id: "category-filter-bar"
+    timeout: 25000
+
+# Dismiss any dialog that snuck in during loading
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+- assertVisible: "Near Me"
+
+# At least one merchant card rendered
+- assertVisible:
+    id: "merchant-card"
+
+# Category filter bar visible
+- assertVisible:
+    id: "category-filter-bar"
+
+# Tap a category chip and verify list updates (no crash)
+- tapOn:
+    id: "category-chip-0"
+
+- waitForAnimationToEnd
+
+- assertVisible: "Near Me"

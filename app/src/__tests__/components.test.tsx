@@ -35,7 +35,32 @@ import { Button } from '../components/button';
 import { Input } from '../components/input';
 import { ThemedText } from '../components/themed-text';
 import { ThemedView } from '../components/themed-view';
-import { TodoCard } from '../components/todo-card';
+
+// ---------------------------------------------------------------------------
+// Mock react-native-reanimated for SkeletonCard
+// ---------------------------------------------------------------------------
+jest.mock('react-native-reanimated', () => {
+  const RN = require('react-native');
+  return {
+    __esModule: true,
+    default: {
+      View: RN.View,
+      createAnimatedComponent: (c: any) => c,
+    },
+    useSharedValue: jest.fn((v: any) => ({ value: v })),
+    withRepeat: jest.fn((v: any) => v),
+    withTiming: jest.fn((v: any) => v),
+    useAnimatedStyle: jest.fn((_cb: any) => ({})),
+    Easing: { linear: jest.fn(), ease: jest.fn() },
+  };
+});
+
+// ---------------------------------------------------------------------------
+// Mock @/utils/format-distance for MerchantCard
+// ---------------------------------------------------------------------------
+jest.mock('@/utils/format-distance', () => ({
+  formatDistance: (meters: number) => `${meters}m`,
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -201,83 +226,140 @@ describe('ThemedView', () => {
 });
 
 // ---------------------------------------------------------------------------
-// TodoCard
+// New component imports (after all mocks)
 // ---------------------------------------------------------------------------
-describe('TodoCard', () => {
-  let onPress: jest.Mock;
-  let onToggle: jest.Mock;
-  let onLongPress: jest.Mock;
-  let baseProps: {
-    id: string;
-    title: string;
-    isCompleted: boolean;
-    onPress: jest.Mock;
-    onToggle: jest.Mock;
-    onLongPress: jest.Mock;
+import { MerchantCard } from '../components/MerchantCard';
+import { CategoryFilterBar } from '../components/CategoryFilterBar';
+import { SkeletonCard } from '../components/SkeletonCard';
+import type { NearbyFeedItem, MerchantCategory } from '../types/feed';
+
+// ---------------------------------------------------------------------------
+// MerchantCard
+// ---------------------------------------------------------------------------
+describe('MerchantCard', () => {
+  const baseMerchant: NearbyFeedItem = {
+    type: 'merchant',
+    id: 'merchant-1',
+    name: 'Priya Tailors',
+    category: 'Tailoring',
+    lat: 12.93,
+    lng: 77.62,
+    avg_rating: 4.5,
+    review_count: 12,
+    follower_count: 5,
+    is_verified: true,
+    distance_meters: 350,
+    description: 'Expert tailoring services',
+    neighborhood: 'Koramangala',
+    tags: ['custom', 'alterations'],
   };
+
+  let onPress: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
     onPress = jest.fn();
-    onToggle = jest.fn();
-    onLongPress = jest.fn();
-    baseProps = {
-      id: 'todo-1',
-      title: 'Buy groceries',
-      isCompleted: false,
-      onPress,
-      onToggle,
-      onLongPress,
-    };
   });
 
-  it('renders title', () => {
-    render(<TodoCard {...baseProps} />);
-    expect(screen.getByText('Buy groceries')).toBeTruthy();
+  it('renders merchant name', () => {
+    render(<MerchantCard item={baseMerchant} onPress={onPress} />);
+    expect(screen.getByText('Priya Tailors')).toBeTruthy();
   });
 
-  it('renders description when provided', () => {
-    render(<TodoCard {...baseProps} description="Milk, eggs, bread" />);
-    expect(screen.getByText('Milk, eggs, bread')).toBeTruthy();
+  it('renders category text', () => {
+    render(<MerchantCard item={baseMerchant} onPress={onPress} />);
+    expect(screen.getByText('Tailoring')).toBeTruthy();
   });
 
-  it('does not render description when not provided', () => {
-    render(<TodoCard {...baseProps} />);
-    expect(screen.queryByText('Milk, eggs, bread')).toBeNull();
+  it('renders formatted distance', () => {
+    render(<MerchantCard item={baseMerchant} onPress={onPress} />);
+    // formatDistance is mocked to return `${meters}m`
+    expect(screen.getByText('350m')).toBeTruthy();
   });
 
-  it('shows checkmark when completed', () => {
-    render(<TodoCard {...baseProps} isCompleted />);
-    expect(screen.getByText('✓')).toBeTruthy();
-  });
-
-  it('title has strikethrough style when completed', () => {
-    render(<TodoCard {...baseProps} isCompleted />);
-    const flat = flatStyle(screen.getByText('Buy groceries').props.style);
-    expect(flat.textDecorationLine).toBe('line-through');
-  });
-
-  it('title has no strikethrough when not completed', () => {
-    render(<TodoCard {...baseProps} isCompleted={false} />);
-    const flat = flatStyle(screen.getByText('Buy groceries').props.style);
-    expect(flat.textDecorationLine).toBeUndefined();
-  });
-
-  it('calls onPress when card is pressed', () => {
-    render(<TodoCard {...baseProps} />);
-    fireEvent.press(screen.getByText('Buy groceries'));
+  it('calls onPress with merchant id when tapped', () => {
+    render(<MerchantCard item={baseMerchant} onPress={onPress} />);
+    fireEvent.press(screen.getByTestId('merchant-card'));
     expect(onPress).toHaveBeenCalledTimes(1);
+    expect(onPress).toHaveBeenCalledWith('merchant-1');
   });
 
-  it('calls onToggle when checkbox is pressed', () => {
-    render(<TodoCard {...baseProps} />);
-    fireEvent.press(screen.getByTestId('checkbox-buy-groceries'));
-    expect(onToggle).toHaveBeenCalledTimes(1);
+  it('renders with null description without crashing', () => {
+    const minimalMerchant: NearbyFeedItem = {
+      ...baseMerchant,
+      id: 'merchant-2',
+      description: null,
+    };
+    render(<MerchantCard item={minimalMerchant} onPress={onPress} />);
+    expect(screen.getByText('Priya Tailors')).toBeTruthy();
   });
 
-  it('calls onLongPress on long press', () => {
-    render(<TodoCard {...baseProps} />);
-    fireEvent(screen.getByText('Buy groceries'), 'longPress');
-    expect(onLongPress).toHaveBeenCalledTimes(1);
+  it('has testID merchant-card', () => {
+    render(<MerchantCard item={baseMerchant} onPress={onPress} />);
+    expect(screen.getByTestId('merchant-card')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CategoryFilterBar
+// ---------------------------------------------------------------------------
+describe('CategoryFilterBar', () => {
+  let onSelect: jest.Mock;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    onSelect = jest.fn();
+  });
+
+  it('renders All chip', () => {
+    render(<CategoryFilterBar selected={null} onSelect={onSelect} />);
+    expect(screen.getByText('All')).toBeTruthy();
+  });
+
+  it('renders all 7 category chips', () => {
+    render(<CategoryFilterBar selected={null} onSelect={onSelect} />);
+    const chips = screen.getAllByTestId(/^category-chip-\d+$/);
+    expect(chips).toHaveLength(7);
+  });
+
+  it('calls onSelect(null) when All chip is tapped', () => {
+    render(<CategoryFilterBar selected={null} onSelect={onSelect} />);
+    fireEvent.press(screen.getByTestId('category-chip-0'));
+    expect(onSelect).toHaveBeenCalledWith(null);
+  });
+
+  it("calls onSelect('Beauty') when Beauty chip is tapped", () => {
+    render(<CategoryFilterBar selected={null} onSelect={onSelect} />);
+    fireEvent.press(screen.getByTestId('category-chip-2'));
+    expect(onSelect).toHaveBeenCalledWith('Beauty');
+  });
+
+  it('has testID category-filter-bar', () => {
+    render(<CategoryFilterBar selected={null} onSelect={onSelect} />);
+    expect(screen.getByTestId('category-filter-bar')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SkeletonCard
+// ---------------------------------------------------------------------------
+describe('SkeletonCard', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('renders default 3 skeleton items', () => {
+    render(<SkeletonCard />);
+    const items = screen.getAllByTestId('skeleton-card');
+    expect(items).toHaveLength(3);
+  });
+
+  it('renders specified count of skeleton items', () => {
+    render(<SkeletonCard count={2} />);
+    const items = screen.getAllByTestId('skeleton-card');
+    expect(items).toHaveLength(2);
+  });
+
+  it('has testID skeleton-card on each item', () => {
+    render(<SkeletonCard count={1} />);
+    expect(screen.getByTestId('skeleton-card')).toBeTruthy();
   });
 });

@@ -1,0 +1,142 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.raja.localstore
+  TEST_PHONE: "+919182666194"
+  TEST_PHONE_OTP: "123456"
+  TEST_SEARCH_QUERY: "salon"
+---
+# Search flow E2E test.
+# Verifies: search tab → type partial query → results render → empty state for no-match.
+# Prerequisite: seed data includes a merchant with TEST_SEARCH_QUERY in name/description.
+
+- launchApp:
+    appId: ${APP_ID}
+    clearState: true
+
+- waitForAnimationToEnd
+
+# Sign out if already logged in (clearState doesn't clear expo-secure-store on Android)
+- runFlow:
+    when:
+      visible: "Sign Out"
+    commands:
+      - tapOn: "Sign Out"
+      - extendedWaitUntil:
+          visible:
+            text: "Logout"
+          timeout: 5000
+      - tapOn: "Logout"
+      - waitForAnimationToEnd
+
+# --- Login ---
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 30000
+
+- tapOn:
+    id: "phone-input"
+- inputText: ${TEST_PHONE}
+
+- tapOn:
+    id: "send-code-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter the 6-digit code sent to your phone"
+    timeout: 15000
+
+- tapOn:
+    id: "otp-input"
+- inputText: ${TEST_PHONE_OTP}
+
+- tapOn:
+    id: "verify-button"
+
+- waitForAnimationToEnd
+
+# --- Grant location if prompted ---
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+# --- Android system dialogs (may appear 1-2 times) ---
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# Wait for feed to confirm location acquired (showEmptyState requires hasCoords)
+- extendedWaitUntil:
+    visible:
+      id: "category-filter-bar"
+    timeout: 25000
+
+# --- Dismiss LogBox banner if present (its close button overlaps the tab bar) ---
+- runFlow:
+    when:
+      visible: "Open debugger to view warnings."
+    commands:
+      - tapOn:
+          point: "92%,92%"
+      - waitForAnimationToEnd
+
+# --- Navigate to search tab ---
+- extendedWaitUntil:
+    visible:
+      id: "tab-search"
+    timeout: 20000
+
+- tapOn:
+    id: "tab-search"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      id: "search-screen"
+    timeout: 10000
+
+# --- Type partial query → results appear ---
+- tapOn:
+    id: "search-input"
+
+- inputText: ${TEST_SEARCH_QUERY}
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      id: "merchant-card"
+    timeout: 20000
+
+- assertVisible:
+    id: "merchant-card"
+
+# --- Clear and type gibberish → empty state ---
+- tapOn:
+    id: "search-input"
+- eraseText: 50
+- inputText: "xqzxqzxqz"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      id: "empty-state"
+    timeout: 10000
+
+- assertVisible:
+    id: "empty-state"

@@ -31,6 +31,32 @@ Integration tests hitting a live Supabase instance — auto-skipped when unreach
   - gotcha: `test_list_todos_ordered_by_created_at_desc` uses `time.sleep(1)` between creates to ensure distinct timestamps — this is intentional
   - gotcha: `test_list_todos_only_own` explicitly verifies RLS is working — all returned todos must have `user_id` matching the authenticated user
 
+- `test_feed_integration.py` — real `/feed/nearby` tests against live Supabase (4 tests)
+  - tests: feed nearby cursor pagination; distance calculation; location-based merchant filtering
+
+- `test_search_integration.py` — real `/search` tests against live Supabase (3 tests)
+  - tests: combined merchant + service search; text search with pg_trgm; response structure validation
+
+- `test_merchants_integration.py` — real `/merchants` CRUD tests; appended `TestMerchantEndpointsIntegration` class
+  - tests: merchant creation, update, deletion; phone number masking in GET detail; services and portfolio endpoints
+  - side-effects: creates and deletes real merchants in Supabase
+
+- `test_rls_integration.py` — RLS policy verification tests (new in Sprint 4)
+  - tests: verify auth guards and row-level security policies work correctly
+
+- `test_merchant_creation_flow.py` — end-to-end merchant creation flow integration tests
+  - tests: create merchant with profile, services, portfolio; verify RLS isolation; phone masking
+
+- `test_users_me_extended.py` — extended `/users/me` endpoint integration tests
+  - tests: get profile with extended fields, update profile, push token registration
+
+- `test_chat_integration.py` — real chat integration tests against live Supabase (Sprint 9)
+  - tests: create thread, list threads, send message, list messages (cursor-paginated), mark read, RLS isolation
+
+- `test_push_integration.py` — real push integration tests against live Supabase (Sprint 11)
+  - tests: send message triggers push notification to recipient; no push if recipient has no token; 2 test cases
+  - deps: real Supabase, mocked `push_service.send_push` (to avoid hitting Expo API)
+
 - `__init__.py` — empty; marks directory as Python package for pytest import resolution
 
 ## How to Run

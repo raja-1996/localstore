@@ -1,0 +1,24 @@
+## [2026-03-28] — Sprint 4: Frontend — Feed + Merchant Profile
+
+- Created `app/src/utils/format-distance.ts`: converts `distance_meters` (number) to human-readable `"500m"` / `"2.1km"` string; used by MerchantCard and merchant detail header
+- Created `app/src/types/feed.ts`: `NearbyFeedItem`, `NearbyFeedResponse`, `MerchantCategory` enum (single source of truth for category values on frontend)
+- Created `app/src/types/merchant.ts`: `MerchantDetail` (13 fields including `is_owner`, `is_verified`, masked `phone`), `ServiceResponse`, `PortfolioImage`
+- Created `app/src/services/feed-service.ts`: `feedService.getNearby(lat, lng, cursor?, category?)` → `GET /feed/nearby`; decodes cursor for pagination
+- Extended `app/src/services/merchant-service.ts` (read path): `getMerchant(id)`, `getMerchantServices(id)`, `getMerchantPortfolio(id)`; all 3 called in parallel via `Promise.all` inside `useMerchant`
+- Created `app/src/hooks/use-feed.ts`: `useFeed({ lat, lng, category })` — TanStack Query `useInfiniteQuery`; query disabled when `lat`/`lng` are null; `staleTime: 30s`
+- Created `app/src/hooks/use-merchant.ts`: `useMerchant(id)` — single query that fires 3 parallel calls and returns `{ merchant, services, portfolio }`; any call failure sets entire query to error state
+- Created `app/src/components/MerchantCard.tsx`: avatar with first-letter fallback, name + distance badge, category chip, description (2 lines), rating; `testID="merchant-card"` for Maestro
+- Created `app/src/components/CategoryFilterBar.tsx`: horizontal `ScrollView` of category chips; `testID="category-filter-bar"` + `testID="category-chip-{index}"` for Maestro; "All" chip resets filter; selected chip has primary background
+- Created `app/src/components/SkeletonCard.tsx`: animated shimmer placeholders matching MerchantCard layout; `count` prop; used by feed and merchant detail during loading
+- Created `app/src/app/(app)/feed/index.tsx`: FlashList of MerchantCards; CategoryFilterBar header; pull-to-refresh (refreshes location + data); infinite scroll via `onEndReached`; 3 conditional states: undetermined-permission interstitial (skip-able), denied-permission message, normal feed; S4-F5a: `AppState` listener refreshes location on app foreground if `isStale()` (>10 min)
+- Created `app/src/app/(app)/merchant/[id].tsx`: 5-section ScrollView (header/services/portfolio/contact/reviews); `MerchantHeader` shows avatar initial, name, category badge, verified badge, neighborhood, rating, distance, description; `ServicesSection` renders service cards with price; `PortfolioSection` renders 3-column image grid with full-screen `Modal` viewer on tap; `ContactSection` shows masked phone + address + WhatsApp button (Alert "Coming soon"); `ReviewsPlaceholder` stub for MVP 2; all sections have testIDs for Maestro
+- Created 5 frontend unit test files (43 tests): `format-distance.test.ts`, `feed-service.test.ts`, `location-store.test.ts`, `feed-screen.test.tsx`, `merchant-screen.test.tsx` — all 43 pass
+- Created `backend/tests/integration/test_rls_integration.py` (4 tests): user cannot PATCH/DELETE another user's merchant; user cannot add service or delete portfolio image of another merchant — all 4 pass against real Supabase
+- Backend integration tests verified: `test_merchants_integration.py` (17 tests) + `test_rls_integration.py` (4 tests) = 21/21 pass
+- `e2e/maestro/04-feed-nearby.yaml`: login → grant location → feed loads MerchantCards → tap category chip → "Near Me" still visible — PASS on Pixel_9_Pro
+- `e2e/maestro/05-merchant-detail.yaml`: login → feed → tap first merchant → detail screen shows all 5 sections → back returns to feed — PASS on Pixel_9_Pro
+- Frontend total: 225 unit tests pass (feed + merchant tests are subset of final 268 count in Sprint 5)
+- Gotcha: `useMerchant` fires 3 parallel calls with `Promise.all` — any single failure poisons the whole query; handle with explicit error UI, not partial data
+- Gotcha: `FlashList` requires `estimatedItemSize` prop; without it, scroll performance degrades on long lists — set to `120` (approximate card height)
+- Gotcha: `CategoryFilterBar` must not import from `constants/categories.ts` directly — it accepts `categories` as a prop to stay decoupled; feed screen passes the array
+- Gotcha: `permissionStatus === 'undetermined'` shows a skip-able prompt (user can bypass via "Maybe Later"); `permissionStatus === 'denied'` is not skip-able — distinct UX for each state

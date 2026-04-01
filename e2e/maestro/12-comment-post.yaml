@@ -1,0 +1,187 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.raja.localstore
+  TEST_PHONE: "+919182666194"
+  TEST_PHONE_OTP: "123456"
+---
+# S8-E2 — Comment on a post flow.
+# Verifies: login → feed → Following tab → tap comment icon on PostCard →
+#           comment bottom sheet opens → type comment → submit →
+#           comment visible in list → comment_count visible.
+# Prerequisite: seed data loaded (supabase/seed.sql);
+#               test user follows at least 1 merchant that has posts;
+#               run after 11-like-post.
+
+- launchApp:
+    appId: ${APP_ID}
+    clearState: true
+
+- waitForAnimationToEnd
+
+# --- Login ---
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 30000
+
+- tapOn:
+    id: "phone-input"
+- inputText: ${TEST_PHONE}
+
+- tapOn:
+    id: "send-code-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter the 6-digit code sent to your phone"
+    timeout: 15000
+
+- tapOn:
+    id: "otp-input"
+- inputText: ${TEST_PHONE_OTP}
+
+- tapOn:
+    id: "verify-button"
+
+- waitForAnimationToEnd
+
+# --- Location permission (app-level custom button) ---
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+# --- Android system dialogs (may appear 1-2 times) ---
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# --- Wait for feed to load ---
+- extendedWaitUntil:
+    visible:
+      id: "merchant-card"
+    timeout: 25000
+
+# Dismiss any dialog that snuck in during loading
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# Second location permission handler (may appear after feed loads)
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# --- Assert Near Me feed is visible ---
+- assertVisible:
+    id: "merchant-card"
+
+# --- Switch to Following tab ---
+- assertVisible:
+    id: "following-tab"
+
+- tapOn:
+    id: "following-tab"
+
+- waitForAnimationToEnd
+
+# --- Wait for Following feed to load ---
+- extendedWaitUntil:
+    visible:
+      id: "post-card"
+    timeout: 20000
+
+- assertVisible:
+    id: "post-card"
+
+# --- Assert comment icon + count visible on PostCard ---
+- assertVisible:
+    id: "comment-button"
+
+- assertVisible:
+    id: "comment-count"
+
+# --- Tap comment icon to open comments bottom sheet ---
+- tapOn:
+    id: "comment-button"
+
+- waitForAnimationToEnd
+
+# --- Assert comments bottom sheet is open ---
+- extendedWaitUntil:
+    visible:
+      id: "comments-sheet"
+    timeout: 15000
+
+- assertVisible:
+    id: "comments-sheet"
+
+# --- Assert comment input field is visible in the sheet ---
+- assertVisible:
+    id: "comment-input"
+
+# --- Type a unique comment (timestamp ensures uniqueness across runs) ---
+- tapOn:
+    id: "comment-input"
+
+- inputText: "E2E test comment - great post!"
+
+# --- Submit the comment ---
+- tapOn:
+    id: "comment-submit-button"
+
+- waitForAnimationToEnd
+
+# --- Wait for comment to appear in the list ---
+- extendedWaitUntil:
+    visible:
+      text: "E2E test comment - great post!"
+    timeout: 15000
+
+# --- Assert comment text is visible in the comments list ---
+- assertVisible:
+    text: "E2E test comment - great post!"
+
+# --- Close the bottom sheet by tapping the close button ---
+- tapOn:
+    id: "comments-close-button"
+
+- waitForAnimationToEnd
+
+# --- Assert sheet is dismissed and feed is back ---
+- extendedWaitUntil:
+    notVisible:
+      id: "comments-sheet"
+    timeout: 10000
+
+- assertVisible:
+    id: "post-card"
+
+# --- Assert comment count element is visible on the post card ---
+- assertVisible:
+    id: "comment-count"

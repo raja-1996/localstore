@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="Test Suite" device="Pixel_9_Pro" tests="3" failures="3" time="176.0">
+    <testcase id="11-like-post" name="11-like-post" classname="11-like-post" time="57.0" status="ERROR">
+      <failure>Assertion is false: id: post-card is visible</failure>
+    </testcase>
+    <testcase id="12-comment-post" name="12-comment-post" classname="12-comment-post" time="64.0" status="ERROR">
+      <failure>Assertion is false: id: post-card is visible</failure>
+    </testcase>
+    <testcase id="13-merchant-create-post" name="13-merchant-create-post" classname="13-merchant-create-post" time="55.0" status="ERROR">
+      <failure>Assertion is false: id: merchant-card is visible</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

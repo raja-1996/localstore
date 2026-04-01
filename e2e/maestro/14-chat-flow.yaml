@@ -1,0 +1,178 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.raja.localstore
+  TEST_PHONE: "+919182666194"
+  TEST_PHONE_OTP: "123456"
+---
+# Chat flow E2E test.
+# Verifies: login → feed → tap merchant card → scroll to contact section →
+#           tap "Chat" button → chat detail opens → send message →
+#           assert message visible → go back → assert thread row + last message preview.
+
+- launchApp:
+    appId: ${APP_ID}
+    clearState: true
+
+- waitForAnimationToEnd
+
+# --- Login ---
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 30000
+
+- tapOn:
+    id: "phone-input"
+- inputText: ${TEST_PHONE}
+
+- tapOn:
+    id: "send-code-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter the 6-digit code sent to your phone"
+    timeout: 15000
+
+- tapOn:
+    id: "otp-input"
+- inputText: ${TEST_PHONE_OTP}
+
+- tapOn:
+    id: "verify-button"
+
+- waitForAnimationToEnd
+
+# --- Location permission (app-level custom button) ---
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+# --- Android system dialogs (may appear 1-2 times) ---
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# --- Wait for feed to load ---
+- extendedWaitUntil:
+    visible:
+      id: "merchant-card"
+    timeout: 25000
+
+# Dismiss any stray dialog during load
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# --- Tap first merchant card ---
+- tapOn:
+    id: "merchant-card"
+
+- waitForAnimationToEnd
+
+# --- Merchant detail screen ---
+- extendedWaitUntil:
+    visible:
+      id: "merchant-detail-screen"
+    timeout: 15000
+
+- extendedWaitUntil:
+    visible:
+      id: "merchant-name"
+    timeout: 15000
+
+# --- Scroll down to contact section so chat button is reachable ---
+- scrollUntilVisible:
+    element:
+      id: "contact-section"
+    direction: DOWN
+    timeout: 10000
+
+# --- Tap Chat button (only visible when user is not the merchant owner) ---
+- extendedWaitUntil:
+    visible:
+      id: "chat-button"
+    timeout: 8000
+
+- tapOn:
+    id: "chat-button"
+
+- waitForAnimationToEnd
+
+# --- Chat detail screen ---
+- extendedWaitUntil:
+    visible:
+      id: "chat-detail-screen"
+    timeout: 15000
+
+- assertVisible:
+    id: "chat-detail-screen"
+
+# --- Type and send a message ---
+- tapOn:
+    id: "message-input"
+
+- inputText: "Hello from E2E test"
+
+# Wait for React onChangeText state update to propagate
+- waitForAnimationToEnd
+
+# Use returnKeyType="send" / onSubmitEditing to dispatch message.
+# This avoids keyboard-covering-button issues on Android.
+- pressKey: Enter
+
+- waitForAnimationToEnd
+
+# Confirm message appears in chat detail (optimistic update) before navigating away
+- extendedWaitUntil:
+    visible:
+      text: "Hello from E2E test"
+    timeout: 12000
+
+# Allow send mutation + thread list invalidation to settle
+- waitForAnimationToEnd
+
+# --- Navigate to chat list via tab bar (back would return to merchant detail) ---
+- tapOn:
+    id: "tab-chat"
+
+- waitForAnimationToEnd
+
+# --- Chat list screen must be visible ---
+- extendedWaitUntil:
+    visible:
+      id: "chat-list-screen"
+    timeout: 10000
+
+- assertVisible:
+    id: "chat-list-screen"
+
+# Swipe down to trigger pull-to-refresh
+- swipe:
+    direction: DOWN
+    duration: 800
+
+- waitForAnimationToEnd
+
+# --- Assert last message preview in chat list (regular FlatList, no transform) ---
+- extendedWaitUntil:
+    visible:
+      text: "Hello from E2E test"
+    timeout: 15000
+
+- assertVisible: "Hello from E2E test"

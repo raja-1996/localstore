@@ -10,11 +10,11 @@ Infrastructure singletons: HTTP client, Supabase client, React Query client, and
   - gotcha: on 401, retries original request exactly once (`_retry` flag); if refresh also fails, deletes tokens from SecureStore — but does NOT redirect/logout from here
   - gotcha: do NOT import this file in Node.js test environments (uses `expo-secure-store`); use standalone axios in integration tests
 
-- `notifications.ts` — Expo push notification setup: permission request, token registration, listener helpers
-  - exports: `registerForPushNotifications`, `addNotificationListener`, `addNotificationResponseListener`
-  - deps: `./api`, `expo-notifications`, `expo-device`
-  - side-effects: sets global notification handler on module load (`Notifications.setNotificationHandler`); calls `POST /notifications/register-token`
-  - gotcha: returns `null` silently on simulators (`!Device.isDevice`); backend token registration failure is silently swallowed
+- `notifications.ts` — Expo push notification setup: permission request and token acquisition (Sprint 11)
+  - exports: `registerForPushNotifications()` -> `Promise<string | null>`
+  - deps: `expo-notifications`, `expo-device`
+  - side-effects: sets global notification handler on module load (`Notifications.setNotificationHandler`); requests permissions on iOS; initializes Android notification channel
+  - gotcha: returns `null` on simulators (`!Device.isDevice`) or denied permissions; hardcodes `projectId` from EAS config
 
 - `query-client.ts` — shared TanStack Query `QueryClient` singleton with app-wide defaults
   - exports: `queryClient`

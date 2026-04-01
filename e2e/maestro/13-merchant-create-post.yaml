@@ -1,0 +1,220 @@
+appId: ${APP_ID}
+env:
+  APP_ID: com.raja.localstore
+  TEST_PHONE: "+919182666194"
+  TEST_PHONE_OTP: "123456"
+  TEST_MERCHANT_PHONE: "+919182666195"
+  TEST_MERCHANT_OTP: "123456"
+---
+# S8-E3 — Merchant creates a post flow.
+# Verifies: login as merchant → profile → merchant profile tab →
+#           tap "New Post" → fill content + select post_type "update" →
+#           submit → navigate to merchant detail → post card visible.
+# Prerequisite: TEST_MERCHANT_PHONE has OTP bypass = 123456 in Supabase dashboard.
+
+- launchApp:
+    appId: ${APP_ID}
+    clearState: true
+
+- waitForAnimationToEnd
+
+# --- Login as merchant user ---
+- extendedWaitUntil:
+    visible:
+      text: "Phone Login"
+    timeout: 30000
+
+- tapOn:
+    id: "phone-input"
+- inputText: ${TEST_MERCHANT_PHONE}
+
+- tapOn:
+    id: "send-code-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter the 6-digit code sent to your phone"
+    timeout: 15000
+
+- tapOn:
+    id: "otp-input"
+- inputText: ${TEST_MERCHANT_OTP}
+
+- tapOn:
+    id: "verify-button"
+
+- waitForAnimationToEnd
+
+# --- Location permission (app-level custom button) ---
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+# --- Android system dialogs (may appear 1-2 times) ---
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# --- Wait for feed to load (profile tab always present after login) ---
+- extendedWaitUntil:
+    visible:
+      id: "tab-profile"
+    timeout: 25000
+
+# Dismiss any dialog that snuck in during loading
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# Second location permission handler (may appear after feed loads)
+- runFlow:
+    when:
+      visible: "Allow Location"
+    commands:
+      - tapOn: "Allow Location"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+      - waitForAnimationToEnd
+
+# --- Navigate to profile tab ---
+- tapOn:
+    id: "tab-profile"
+
+- waitForAnimationToEnd
+
+# --- Assert profile screen is visible ---
+- extendedWaitUntil:
+    visible:
+      id: "profile-screen"
+    timeout: 15000
+
+- assertVisible:
+    id: "profile-screen"
+
+# --- Tap "My Merchant Profile" or "Merchant Profile" section ---
+- scrollUntilVisible:
+    element:
+      id: "merchant-profile-link"
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+
+- tapOn:
+    id: "merchant-profile-link"
+
+- waitForAnimationToEnd
+
+# --- Assert merchant profile screen is visible ---
+- extendedWaitUntil:
+    visible:
+      id: "merchant-profile-screen"
+    timeout: 15000
+
+- assertVisible:
+    id: "merchant-profile-screen"
+
+# --- Assert "New Post" button is visible (merchant-only feature) ---
+- scrollUntilVisible:
+    element:
+      id: "new-post-button"
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+
+- assertVisible:
+    id: "new-post-button"
+
+# --- Tap New Post button ---
+- tapOn:
+    id: "new-post-button"
+
+- waitForAnimationToEnd
+
+# --- Assert new post form/sheet is open ---
+- extendedWaitUntil:
+    visible:
+      id: "new-post-form"
+    timeout: 15000
+
+- assertVisible:
+    id: "new-post-form"
+
+# --- Assert content input is present ---
+- assertVisible:
+    id: "post-content-input"
+
+# --- Type post content (under 500 char limit) ---
+- tapOn:
+    id: "post-content-input"
+
+- inputText: "New product update - now offering express delivery within 2 hours. Book now!"
+
+# --- Select post_type "update" ---
+# post_type selector expected IDs: "post-type-update" or "post-type-offer"
+- tapOn:
+    id: "post-type-update"
+
+- waitForAnimationToEnd
+
+# Dismiss keyboard before submitting
+- tapOn:
+    id: "new-post-form"
+
+- waitForAnimationToEnd
+
+# --- Submit the post ---
+- tapOn:
+    id: "post-submit-button"
+
+- waitForAnimationToEnd
+
+# --- Wait for form to close after successful submit ---
+- extendedWaitUntil:
+    notVisible:
+      id: "new-post-form"
+    timeout: 15000
+
+- assertNotVisible:
+    id: "new-post-form"
+
+# --- Verify post appears on merchant detail screen (scroll down to posts section) ---
+- scrollUntilVisible:
+    element:
+      id: "post-card"
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+
+- assertVisible:
+    id: "post-card"
+
+# --- Assert the submitted post content is visible ---
+- scrollUntilVisible:
+    element:
+      text: "New product update - now offering express delivery within 2 hours. Book now!"
+    direction: DOWN
+    timeout: 15000
+
+- assertVisible:
+    text: "New product update - now offering express delivery within 2 hours. Book now!"

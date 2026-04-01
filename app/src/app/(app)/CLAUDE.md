@@ -1,25 +1,26 @@
 # (app)
-Authenticated route group — tab-based navigator with Todos, Realtime, and Settings tabs.
+Authenticated route group — multi-tab navigator with Feed, Search, Chat, and Profile tabs. Feed is default entry point post-login.
 
-- `_layout.tsx` — Tabs navigator for the authenticated section; applies theme colors to tab bar and headers
+- `_layout.tsx` — Tabs navigator for the authenticated section; Feed, Search, Chat, Profile tabs
   - exports: default `AppLayout`
-  - deps: `../../hooks/use-theme`, `expo-router`
-  - gotcha: `todo-detail` tab has `href: null` — hidden from tab bar but accessible via `router.push('/(app)/todo-detail')`
+  - deps: `../../hooks/use-theme`, `../../stores/chat-store`, `expo-router`
+  - changes (Sprint 10): added Chat tab with unread badge; reads `totalUnread` from `useChatStore` and displays badge when > 0
 
-- `todos.tsx` — main todo list screen; FlashList with pull-to-refresh, toggle complete, delete (long press), and FAB to create
-  - exports: default `TodosScreen`
-  - deps: `../../components/themed-view`, `../../components/themed-text`, `../../components/todo-card`, `../../hooks/use-todos`, `../../hooks/use-theme`, `../../constants/theme`
-  - side-effects: mutates via `useUpdateTodo` / `useDeleteTodo` (backend API calls via TanStack mutation)
-  - gotcha: delete triggered by long-press on TodoCard — not obvious from UI; confirmed by Alert dialog
-  - gotcha: FAB has `testID="fab-button"` for E2E
+- `feed/index.tsx` — Near Me feed screen; displays merchants nearby using location coordinates
+  - exports: default `NearbyFeedScreen`
+  - deps: `../../components/*`, `../../hooks/use-feed`, `../../stores/location-store`, `../../constants/theme`, `react-native-gesture-handler`, `expo-blur`
+  - side-effects: fetches nearby merchants via `useFeed`; permission interstitial when `permissionStatus === 'undetermined'`; calls `refreshLocation` on allow
+  - ui: FlashList with MerchantCard items, CategoryFilterBar for filtering, SkeletonCard loading placeholders
+  - testIDs: `allow-location-button` on location grant button for Maestro automation
+  - gotcha: screen is disabled when `lat`/`lng` are null — `useFeed` query requires valid coordinates from locationStore
 
-- `todo-detail.tsx` — create/edit/delete screen for a single todo; supports image attachment via device library
-  - exports: default `TodoDetailScreen`
-  - deps: `../../components/*`, `../../hooks/use-todos`, `../../services/storage-service`, `../../hooks/use-theme`, `../../constants/theme`, `expo-image-picker`, `expo-image`, `expo-router`
-  - side-effects: uploads image via `storageService.upload` (multipart POST); calls `storageService.getUrl` for signed URL on load
-  - pattern: `seededId` state guards against re-seeding form fields on query re-fetches after mutation
-  - gotcha: when `id` param is absent → `isNew = true` (create mode); image attachment is not saved on create, only on update
-  - gotcha: inputs have `testID="title-input"` and `testID="description-input"` for E2E
+- `merchant/[id].tsx` — Merchant detail screen; displays merchant profile, services, portfolio, contact info, and reviews
+  - exports: default `MerchantDetailScreen`
+  - deps: `../../components/*`, `../../hooks/use-merchant`, `../../constants/theme`, `expo-blur`
+  - side-effects: calls `useMerchant(id)` which fires 3 parallel API calls (merchant detail, services, portfolio) via `Promise.all`
+  - ui: info section with name/avatar/rating, services section with ScrollView, portfolio gallery, contact info, reviews section
+  - testIDs (for Maestro): `merchant-detail-screen`, `merchant-name`, `services-section`, `portfolio-section`, `contact-section`, `reviews-section`, `back-button`
+  - gotcha: `useMerchant` is a single query that fails entirely if any of the 3 parallel calls fails — no partial data; any failure sets the whole query to error state
 
 - `settings.tsx` — user profile, avatar upload, sign-out, and account deletion screen
   - exports: default `SettingsScreen`
@@ -27,9 +28,39 @@ Authenticated route group — tab-based navigator with Todos, Realtime, and Sett
   - side-effects: uploads avatar via `storageService.upload`; calls `useAuthStore.logout` / `useAuthStore.deleteAccount`
   - gotcha: delete account is a two-step guard — must first tap "Delete Account" to reveal input, then type "DELETE" exactly, then confirm dialog
 
-- `realtime.tsx` — Supabase Realtime playground; demonstrates postgres_changes, presence, and broadcast
-  - exports: default `RealtimeScreen`
-  - deps: `../../lib/supabase`, `../../components/*`, `../../hooks/use-theme`, `../../constants/theme`, `@supabase/supabase-js`
-  - side-effects: opens/closes a Supabase Realtime channel; subscribes to `todos` postgres_changes; tracks presence; broadcasts counter events
-  - gotcha: channel is torn down in `useEffect` cleanup on unmount — and also via manual Disconnect button; `channelRef.current` guards against double-subscribe
-  - gotcha: event log is capped at 50 entries (`.slice(0, 49)`) to prevent unbounded memory growth
+- `search/index.tsx` — Search screen with query input and result list
+  - exports: default `SearchScreen`
+  - deps: `../../components/*`, `../../hooks/use-search`, `../../constants/categories`
+  - side-effects: calls `useSearch(query, category)` on query/category change; renders merchant + service results
+  - ui: TextInput for search, category filter, FlatList of results
+
+- `profile/index.tsx` — User profile tab showing saved merchants and search history
+  - exports: default `ProfileScreen`
+  - deps: `../../hooks/use-user-profile`, `../../stores/auth-store`
+  - side-effects: calls `useUserProfile()` to fetch profile; renders saved merchants list
+
+- `profile/merchant.tsx` — Merchant creation flow (requires `is_merchant` flag)
+  - exports: default `MerchantProfileScreen`
+  - deps: `../../../services/merchant-service`, `../../../hooks/use-merchant`
+  - side-effects: calls `merchantService.createMerchant()` for form submission; redirects to merchant detail on success
+
+- `merchant/create.tsx` — Merchant profile creation form for new sellers
+  - exports: default `MerchantCreateScreen`
+  - deps: `../../services/merchant-service`, `../../hooks/use-merchant`
+  - ui: form fields for name, category, description, avatar upload; validates required fields
+  - side-effects: POST `/merchants` with location from locationStore
+
+- `chat/index.tsx` — Chat threads list screen
+  - exports: default `ChatListScreen`
+  - deps: `../../hooks/use-chat`, `../../hooks/use-theme`, `expo-router`
+  - ui: FlatList of ChatThreadRow items; each row shows merchant avatar, name, last message, timestamp, unread badge
+  - side-effects: `useThreads()` fetches paginated threads; updates totalUnread in store; navigation push to `chat/[threadId]` on thread press
+  - testIDs: `chat-list-screen`, `chat-thread-row-{threadId}`, `thread-unread-badge-{threadId}`
+
+- `chat/[threadId].tsx` — Chat detail screen for a single thread
+  - exports: default `ChatDetailScreen`
+  - deps: `../../hooks/use-chat`, `../../stores/auth-store`, `../../hooks/use-theme`, `expo-router`, `expo-image`
+  - ui: inverted FlatList of MessageBubble items; TextInput with send button (up arrow); KeyboardAvoidingView on iOS
+  - side-effects: `useMessages(threadId)` fetches messages; `useSendMessage()` optimistic update; `useChatRealtime(threadId)` Supabase subscription; marks thread read on mount and when new messages arrive
+  - testIDs: `chat-detail-screen`, `message-bubble-{messageId}`, `message-input`, `send-button`
+  - gotcha: `activeChatThreadRef.current = threadId` on mount to prevent incrementing unread while viewing; cleared on unmount
